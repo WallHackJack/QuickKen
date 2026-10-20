@@ -496,6 +496,11 @@ export class BoardView extends Container {
     const d = this.drag;
     if (!d?.active || g.destroyed) return;
     const plan = this.dragPlan(d);
+    const region = d.path;
+    // The sum pill and leftover first: a leftover that pins a cell's digit wins over a copy-paste.
+    this.ghost = this.showRegionSum(region);
+    const confirm = this.confirmDigit(this.ghost) >= 0;
+    if (confirm && plan.mode === 'copy') plan.mode = 'none';
     // Only a live copy keeps the start cell breathing (it stops once the drag leaves the row/column/cage).
     if (d.copying !== (plan.mode === 'copy')) {
       d.copying = plan.mode === 'copy';
@@ -505,7 +510,6 @@ export class BoardView extends Container {
     const cs = this.cs;
     const color = plan.mode === 'line' ? LINE : plan.mode === 'pair' ? PAIR : plan.mode === 'copy' ? MAYBE : NEUTRAL;
     // The outline follows exactly the cells dragged over (free selection); the colour shows the mode.
-    const region = d.path;
     const n = this.game.n;
     if (plan.pair) {
       // Mark the cells in the line that will lose maybes.
@@ -518,10 +522,9 @@ export class BoardView extends Container {
     for (const loop of cageLoops(region, n)) {
       g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color, alpha: 0.95, join: 'miter' });
     }
-    this.ghost = this.showRegionSum(region);
     // The hidden cage those sums imply, outlined as boldly as the selection.
     // A leftover that pins one cell's digit is green: releasing enters it.
-    if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
+    if (this.ghost) this.drawHidden(g, this.ghost.cells, confirm ? CONFIRM : HIDDEN);
     this.setGhostLabels(this.ghost);
   }
 
@@ -689,8 +692,9 @@ export class BoardView extends Container {
     this.cellViews[d.source]?.flash.clear();
     if (!this.dragLayer.destroyed) this.dragLayer.clear();
     const plan = this.dragPlan(d);
-    // A plain selection whose leftover pins one cell: releasing enters that digit.
-    const sure = plan.mode === 'none' ? this.confirmDigit(ghost) : -1;
+    // A selection whose leftover pins one empty cell: releasing enters that digit, taking priority
+    // over a copy-paste (line sweeps and pairs keep their own action).
+    const sure = plan.mode === 'none' || plan.mode === 'copy' ? this.confirmDigit(ghost) : -1;
     if (sure >= 0 && ghost) {
       this.onConfirmCell?.(ghost.cells[0], sure);
       return;
