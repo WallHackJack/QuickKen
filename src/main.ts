@@ -630,6 +630,9 @@ hud.say('Loading…');
 void (async () => {
   link = await Link.connect(snapshot);
   const saved = link ? await link.loadSaved() : loadLocal();
+  // Saving in this browser: ask it to keep the site's storage even when space runs low (it may say no;
+  // the save still works, it just isn't protected from cleanup).
+  if (!link) void navigator.storage?.persist?.().catch(() => false);
   if (saved) startGame({ puzzle: saved.puzzle, attempts: 0 }, saved);
   else requestPuzzle({ size: 6, digits: DIGIT_PRESETS.standard(6), seed: Math.random().toString(36).slice(2) });
   hud.setLinked(!!link);
