@@ -1,4 +1,5 @@
 import './ui/style.css';
+import { primeFactorText } from './game/factor';
 import { cageLabel } from './engine/puzzle';
 import { Application, Container } from 'pixi.js';
 import { maskIndices } from './engine/bits';
@@ -415,6 +416,13 @@ board.onCellTap = (c) => {
   sync();
 };
 board.onCellReselect = () => handlers.toggleNotes();
+// Long-press a × cage: its target's prime factorisation.
+board.onCageHold = (ci) => {
+  if (!game) return;
+  const t = game.puzzle.cages[ci].target;
+  hud.say(primeFactorText(t), 'math');
+};
+
 board.onConfirmCell = (c, d) => {
   if (!game || solvedAt) return;
   board.selected = c;

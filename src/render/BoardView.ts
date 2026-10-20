@@ -122,6 +122,8 @@ interface DragState {
   copying: boolean;
   /** Seconds since the drag started (drives the source cell's breathing outline). */
   time: number;
+  /** A long-press finished on this press: release does nothing else. */
+  held?: boolean;
 }
 
 
@@ -357,6 +359,8 @@ export class BoardView extends Container {
   onDragStart?: (cell: number) => { blueprint: boolean } | null;
   /** The drag was released: apply it. Nothing changes on the board before this. */
   onDragDrop?: (drop: DragDrop) => DragResult;
+  /** A long-press on a × cage finished (its cage popped). */
+  onCageHold?: (cage: number) => void;
   /** A selection's leftover was one empty cell with a known digit: enter it (on release). */
   onConfirmCell?: (cell: number, digit: number) => void;
   private drag: DragState | null = null;
@@ -388,6 +392,8 @@ export class BoardView extends Container {
   /** The hidden values / ghost maybes the playing chain last drew (see refresh). */
   private playView: { hidden: Set<number>; ghost?: Map<number, number> } | null = null;
   private shakeAmount = 0;
+  /** A long-press filling a × cage: a circle (clipped to the cage) growing from the finger. */
+  private hold: { ci: number; layer: Container; circle: Graphics; x: number; y: number; reach: number; ms: number } | null = null;
   /** Whole-board scale for the finish bump (around the board's centre). */
   private bump = 1;
   private home = { x: 0, y: 0 };
@@ -402,6 +408,7 @@ export class BoardView extends Container {
       if (cell < 0) return;
       const reselect = cell === this.selected;
       this.onCellTap?.(cell);
+      this.startHold(cell, p.x, p.y);
       this.drag = { source: cell, reselect, lastCell: cell, lastPos: p, path: [cell], active: false, blueprint: false, copying: false, time: 0 };
     });
     this.on('globalpointermove', (e: FederatedPointerEvent) => {
@@ -441,6 +448,8 @@ export class BoardView extends Container {
         return;
       }
       d.active = true;
+      // Dragging away is not a long-press.
+      this.cancelHold();
       d.blueprint = start.blueprint;
       if (d.blueprint) this.blueprintStart(d.source);
       this.refresh();
@@ -696,6 +705,9 @@ export class BoardView extends Container {
     this.ghost = null;
     const d = this.drag;
     this.drag = null;
+    this.cancelHold();
+    // A finished long-press is the whole action.
+    if (d?.held) return;
     // Decided on release, so starting a drag from the selected cell doesn't count as a tap.
     if (d && !d.active && d.reselect) this.onCellReselect?.(d.source);
     if (!d?.active) return;
@@ -1138,6 +1150,7 @@ export class BoardView extends Container {
     // Pending animations reference the old views.
     this.tweens.clear();
     this.lighting?.clear();
+    this.cancelHold();
     this.comboText = null;
     this.chain = null;
     this.drag = null;
@@ -1638,7 +1651,55 @@ export class BoardView extends Container {
     this.maybeTarget = on ? 1 : 0;
   }
 
+  /** Start a long-press on a × cage's cell: the fill circle grows from (x, y) inside the cage. */
+  private startHold(cell: number, x: number, y: number): void {
+    this.cancelHold();
+    const ci = this.game.topo.cageOf[cell];
+    const cage = this.game.puzzle.cages[ci];
+    if (cage.op !== 'mul') return;
+    const cs = this.cs, n = this.game.n;
+    const mask = new Graphics();
+    for (const c of cage.cells) mask.rect((c % n) * cs, Math.floor(c / n) * cs, cs, cs);
+    mask.fill({ color: 0xffffff });
+    const circle = new Graphics();
+    circle.mask = mask;
+    const layer = new Container();
+    layer.addChild(mask, circle);
+    this.addChildAt(layer, this.getChildIndex(this.dragLayer));
+    // Far enough to cover the whole cage from where the finger is.
+    const reach = Math.max(...cage.cells.flatMap((c) => [0, 1].flatMap((dx) => [0, 1].map((dy) => Math.hypot(((c % n) + dx) * cs - x, (Math.floor(c / n) + dy) * cs - y)))));
+    this.hold = { ci, layer, circle, x, y, reach, ms: 0 };
+  }
+
+  private cancelHold(): void {
+    const h = this.hold;
+    this.hold = null;
+    if (h && !h.layer.destroyed) h.layer.destroy({ children: true });
+  }
+
+  /** Grow the long-press circle; when it fills the cage, the cage pops and the action runs. */
+  private tickHold(dtMs: number): void {
+    const h = this.hold;
+    if (!h || h.layer.destroyed) return;
+    const HOLD_MS = 650;
+    h.ms += dtMs;
+    const k = Math.min(1, h.ms / HOLD_MS);
+    // Starts slow and grows exponentially quicker, so it reads as "keep holding".
+    const r = (h.reach * (Math.pow(2, 5 * k) - 1)) / 31;
+    h.circle.clear().circle(h.x, h.y, Math.max(1, r)).fill({ color: 0x4fc8f0, alpha: 0.18 + 0.22 * k }).stroke({ width: 2, color: 0x9fe8ff, alpha: 0.8 });
+    if (k < 1) return;
+    this.cancelHold();
+    if (this.drag) this.drag.held = true;
+    const cv = this.cageViews[h.ci];
+    this.pulseCage(cv, 0.09, 280);
+    this.cageRipple(cv, 0.9);
+    this.flashLight(this.loopSegments(cv.loops, 0), 0x4fc8f0, 450, this.cs * 0.4, 0.9);
+    this.particles.burst(cv.center.x, cv.center.y, { count: 26, colors: [0x4fc8f0, 0x9fe8ff, 0xffffff], speed: [this.cs * 1.5, this.cs * 4], life: [0.3, 0.6], size: [this.cs * 0.04, this.cs * 0.1], radius: this.cs * 0.3, drag: 4 });
+    this.onCageHold?.(h.ci);
+  }
+
   update(dt: number): void {
+    this.tickHold(dt * 1000);
     this.lighting?.update(dt * 1000);
     if (this.maybeMix !== this.maybeTarget) {
       const step = dt * 6;

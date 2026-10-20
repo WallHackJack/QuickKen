@@ -61,6 +61,8 @@ html, body {
   padding: 6px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line);
 }
 #message.hint { color: var(--warn); }
+/* Maths results (e.g. a × cage's prime factors): centred and larger. */
+#message.math { display: grid; place-items: center; text-align: center; font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
 #message.error { color: #ff7d95; }
 /* Code errors: glows red; tap copies it (see Hud.reportBug). Scrolls when long. */
 #message.bug {

@@ -405,7 +405,7 @@ export class Hud {
     this.timerEl.textContent = `${m}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
   }
 
-  say(text: string, kind: '' | 'hint' | 'error' | 'win' = ''): void {
+  say(text: string, kind: '' | 'hint' | 'error' | 'win' | 'math' = ''): void {
     // A bug report stays up until it has been copied.
     if (this.message.classList.contains('bug') && !this.message.classList.contains('copied')) return;
     this.message.textContent = text;
