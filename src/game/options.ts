@@ -12,9 +12,11 @@ export interface Options {
   animSpeed: 1 | 2 | 4;
   /** Slow motion: every effect plays at this fraction of normal speed (1 = normal). */
   timeScale: 0.25 | 0.5 | 1;
+  /** Tint maybes red when a number already in their row or column rules them out. */
+  markBadMaybes: boolean;
 }
 
-export const DEFAULT_OPTIONS: Options = { chains: true, fillLastGap: true, fillCageLast: true, animSpeed: 4, timeScale: 1 };
+export const DEFAULT_OPTIONS: Options = { chains: true, fillLastGap: true, fillCageLast: true, animSpeed: 4, timeScale: 1, markBadMaybes: true };
 
 const KEY = 'kenken.options';
 

@@ -379,6 +379,8 @@ export class BoardView extends Container {
    * X (display only; the cell is empty). Clear or any entry in the cell removes it.
    */
   disproven = new Map<number, { label: string; digit: number }>();
+  /** Tint maybes red that a number in their row or column already rules out (an option). */
+  markBadNotes = true;
   private comboText: Text | null = null;
   private chain: PlayingChain | null = null;
   /** The hidden values / ghost maybes the playing chain last drew (see refresh). */
@@ -1259,7 +1261,9 @@ export class BoardView extends Container {
       const onlyRemoved = !!ch && !added && ch.before.value === ch.after.value && (ch.before.notes & ~ch.after.notes) !== 0;
       v.notes.forEach((t, d) => {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
-        t.tint = onNote && d === mark.digit ? 0xff9aa8 : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : 0xb9c3e6;
+        // Impossible: a number already shown in the same row or column is this digit.
+        const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;

@@ -55,6 +55,8 @@ let options = loadOptions();
 function applyOptions(): void {
   // Speed only spaces out chain waves: 4× keeps today's gaps, 1× makes them 4 times longer.
   board.wavePace = 4 / options.animSpeed;
+  board.markBadNotes = options.markBadMaybes;
+  board.refresh();
   if (!game) return;
   game.settings.fillLastGap = options.fillLastGap;
   game.settings.fillCageLast = options.fillCageLast;

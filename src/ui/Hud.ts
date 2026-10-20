@@ -212,6 +212,10 @@ export class Hud {
       </section>
       <section class="group">
         <h3>Display</h3>
+        <label class="toggle">
+          <input type="checkbox" id="opt-mark-bad" name="markBadMaybes" />
+          <span><b>Mark impossible maybes</b><small>Maybes turn red when a number already in their row or column rules them out.</small></span>
+        </label>
         <fieldset class="speed">
           <legend><b>Chain pace</b><small>How quickly each step of a chain reaction follows the last. 4× is the quickest.</small></legend>
           <div class="segmented">
