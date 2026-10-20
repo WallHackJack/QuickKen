@@ -1,0 +1,176 @@
+:root {
+  --bg: #05060f;
+  --panel: rgba(14, 16, 36, 0.82);
+  --line: rgba(120, 132, 255, 0.28);
+  --text: #e8eeff;
+  --muted: #8d97c2;
+  --accent: #4fd8ff;
+  --guess: #4fd8ff;
+  --warn: #ffc94f;
+  --maybe: #c49bff;
+  --maybe-bg: rgba(196, 155, 255, 0.16);
+  --maybe-line: rgba(196, 155, 255, 0.5);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', system-ui, sans-serif;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+#stage { position: relative; flex: 1; min-height: 0; }
+#stage canvas { position: absolute; inset: 0; display: block; touch-action: none; }
+
+#hud { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 12px; max-width: 720px; width: 100%; margin: 0 auto; }
+
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  pointer-events: none;
+}
+.topbar > * { pointer-events: auto; }
+/* The logo doubles as the Options button. */
+.topbar .title { font-weight: 800; letter-spacing: 0.08em; background: none; border: none; padding: 6px 2px; font-size: 15px; }
+.topbar .title:hover { color: var(--accent); }
+.topbar .meta { color: var(--muted); font-size: 13px; }
+.topbar .spacer { flex: 1; }
+.topbar .fps { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.topbar .link { font-size: 12px; font-weight: 700; color: #ff9f5a; }
+.topbar .timer { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+#message {
+  /* Fixed height (3 lines) so new messages never resize the board mid-animation. */
+  height: calc(1.35em * 3 + 12px); overflow-y: auto; font-size: 14px; line-height: 1.35; color: var(--muted);
+  padding: 6px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line);
+}
+#message.hint { color: var(--warn); }
+#message.error { color: #ff7d95; }
+/* Code errors: glows red; tap copies it (see Hud.reportBug). Scrolls when long. */
+#message.bug {
+  color: #ffd0d6; border-color: #ff4d6d; box-shadow: 0 0 14px rgba(255, 77, 109, 0.55), inset 0 0 10px rgba(255, 77, 109, 0.25);
+  font: 11px/1.35 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow: auto; user-select: text; -webkit-user-select: text; cursor: copy;
+}
+#message.bug.copied { box-shadow: 0 0 8px rgba(140, 255, 107, 0.5); border-color: #8cff6b; }
+#message.win { color: #8cff6b; font-weight: 700; }
+
+/* Columns are set from the digit count to mirror the maybe grid inside a cell ([1 2 3] / [4 5 6]). */
+.pad { display: grid; gap: 8px; }
+.tools { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 6px; }
+.tools > button { font-size: 14px; padding: 10px 2px; line-height: 1.15; }
+
+button, select, input {
+  font: inherit; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+button { padding: 10px 6px; font-weight: 600; cursor: pointer; transition: transform 0.06s, background 0.15s; }
+button:active { transform: scale(0.95); }
+button:disabled { opacity: 0.35; cursor: default; }
+button.on { background: rgba(79, 216, 255, 0.22); border-color: var(--accent); }
+.pad button { font-size: 28px; min-height: 58px; padding: 4px 2px; border-radius: 12px; }
+/* Board lights reach the buttons (values set by Lighting): a soft sheen where the light lands and a
+   brighter rim on the edge facing it, like light catching a bevel. */
+#hud button { position: relative; }
+#hud button::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  border: 1.5px solid transparent; opacity: var(--li, 0);
+  background:
+    radial-gradient(circle var(--lr, 60px) at var(--lx, 50%) var(--ly, 0), rgb(var(--lc, 255 255 255) / 0.28), transparent) padding-box,
+    radial-gradient(circle var(--lr, 60px) at var(--lx, 50%) var(--ly, 0), rgb(var(--lc, 255 255 255)), transparent 75%) border-box;
+}
+.pad .act { font-size: 18px; }
+/* Digits a finger is sweeping across (they become maybes on release). */
+.pad button.pressed { transform: scale(0.95); filter: brightness(1.35); }
+.pad button.swept { color: #fff; background: rgba(196, 155, 255, 0.45); border-color: var(--maybe); }
+.pad { touch-action: none; }
+.pad.notes button:not(.act) { color: var(--maybe); background: var(--maybe-bg); border-color: var(--maybe-line); }
+.pad.notes button.has:not(.act) { color: #fff; background: rgba(196, 155, 255, 0.4); border-color: var(--maybe); }
+
+/* Undo: holding fills the button left→right; once full it redoes (and keeps redoing while held). */
+button[data-k=undo] { position: relative; overflow: hidden; isolation: isolate; touch-action: none; -webkit-touch-callout: none; }
+button[data-k=undo].holding::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: rgba(79, 216, 255, 0.28); transform-origin: left;
+  animation: hold-fill 0.5s linear forwards;
+}
+button[data-k=undo].redoing { color: var(--accent); background: rgba(79, 216, 255, 0.22); border-color: var(--accent); }
+@keyframes hold-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* --layer is the guess colour (set from script). */
+/* Guess is a plain button until a guess is running; then it takes that guess's colour. */
+.tools button[data-k=guess].guessing { color: var(--layer); border-color: var(--layer); background: color-mix(in srgb, var(--layer) 22%, transparent); }
+
+.guess-menu {
+  --layer: var(--guess);
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 5;
+  display: grid; gap: 6px; padding: 10px;
+  background: #0d0f24; border: 1px solid var(--layer); border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+.guess-menu .lead { margin: 0 2px 2px; font-size: 13px; color: var(--muted); }
+.guess-menu .swatch { font-weight: 700; }
+.guess-menu button { display: grid; gap: 2px; text-align: left; padding: 10px 12px; }
+.guess-menu button b { font-size: 15px; }
+.guess-menu button span { font-size: 12px; font-weight: 400; color: var(--muted); }
+.guess-menu button[data-a=keep] b { color: var(--layer); }
+.guess-menu button[data-a=drop] b { color: #ff8aa0; }
+
+dialog {
+  background: #0d0f24; color: var(--text); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px; width: min(420px, calc(100vw - 32px));
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog h2 { margin: 0 0 12px; font-size: 18px; }
+dialog label { display: grid; gap: 4px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+dialog select, dialog input { padding: 8px; }
+dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+dialog .note { font-size: 12px; color: var(--muted); margin: -4px 0 10px; }
+
+/* Options page */
+dialog.options .toggle { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; margin-bottom: 12px; color: var(--text); font-size: 14px; cursor: pointer; }
+dialog.options .toggle input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
+dialog.options .toggle span { display: grid; gap: 4px; }
+dialog.options .toggle small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+dialog.options .speed { border: none; padding: 0; margin: 4px 0 12px; }
+dialog.options .speed legend { display: grid; gap: 4px; padding: 0; margin-bottom: 8px; font-size: 14px; color: var(--text); }
+dialog.options .speed legend small { color: var(--muted); font-size: 12px; }
+dialog.options .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+dialog.options .segmented label { display: block; margin: 0; cursor: pointer; }
+dialog.options .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+dialog.options .segmented span {
+  display: block; text-align: center; padding: 9px 0; border-radius: 10px; font-weight: 700; color: var(--text);
+  background: var(--panel); border: 1px solid var(--line);
+}
+dialog.options .segmented input:checked + span { background: rgba(79, 216, 255, 0.22); border-color: var(--accent); color: var(--accent); }
+dialog.options .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+dialog.options .group { display: grid; gap: 4px; padding: 12px 0 4px; border-top: 1px solid var(--line); }
+dialog.options .group h3 { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+/* Sub-options hang off the master switch and dim while it's off. */
+dialog.options .sub { margin-left: 10px; padding-left: 20px; border-left: 2px solid var(--line); }
+dialog.options .sub.off { opacity: 0.4; }
+dialog.options .sub.off .toggle { cursor: default; }
+
+/* Keyboard hints on the digit pad: hidden on touch, faint once a keyboard or mouse is used. */
+.pad button { position: relative; }
+.pad button .key {
+  position: absolute; top: 5px; right: 8px; pointer-events: none;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: var(--muted);
+  opacity: 0; transition: opacity 0.25s;
+}
+body.desk-input .pad button .key { opacity: 0.45; }
