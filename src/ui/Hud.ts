@@ -259,19 +259,29 @@ export class Hud {
 
   private buildDialog(): HTMLDialogElement {
     const d = document.createElement('dialog');
-    const presetOpts = Object.keys(DIGIT_PRESETS).map((k) => `<option value="${k}">${k}</option>`).join('');
-    const opOpts = Object.entries(OP_SETS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+    d.className = 'newgame';
+    // A row of buttons (radio inputs styled as a segmented control).
+    const choices = (name: string, items: [string, string][], picked: string, cls = '') =>
+      `<div class="segmented ${cls}">${items.map(([v, label]) => `<label><input type="radio" name="${name}" value="${v}" ${v === picked ? 'checked' : ''} /><span>${label}</span></label>`).join('')}</div>`;
+    const presetNames: Record<string, string> = { standard: '1 – n', zeroBased: '0 – n', evens: 'Evens', odds: 'Odds', centered: 'Centered', primes: 'Primes', tens: 'Tens' };
     d.innerHTML = `
       <h2>New puzzle</h2>
-      <label>Size <select name="size">${[3, 4, 5, 6, 7, 8, 9].map((n) => `<option ${n === 6 ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <label>Digits <select name="preset">${presetOpts}</select></label>
-      <label>Custom digits (overrides size and preset) <input name="custom" placeholder="e.g. 2, 3, 5, 8, 13" /></label>
-      <label>Operators <select name="ops">${opOpts}</select></label>
-      <label>Difficulty <select name="rating"><option value="">Any</option><option>Easy</option><option>Medium</option><option>Hard</option><option>Expert</option><option>Fiendish</option></select></label>
-      <label>Seed <input name="seed" placeholder="blank = random" /></label>
-      <p class="note">The same seed always makes the same puzzle (daily challenges use the date).</p>
+      <h3>Size</h3>
+      ${choices('size', [4, 5, 6, 7, 8, 9].map((n) => [String(n), n === 6 ? `${n}×${n} ★` : `${n}×${n}`]), '6', 'sizes')}
+      <h3>Difficulty</h3>
+      ${choices('rating', ['Easy', 'Medium', 'Hard', 'Expert', 'Fiendish'].map((r) => [r, r]), 'Medium', 'wrap')}
+      <fieldset class="more">
+        <legend>More options</legend>
+        <h3>Digits</h3>
+        ${choices('preset', Object.keys(DIGIT_PRESETS).map((k) => [k, presetNames[k] ?? k]), 'standard', 'wrap')}
+        <h3>Operators</h3>
+        ${choices('ops', Object.entries(OP_SETS).map(([k, v]) => [k, v.label]), 'classic', 'stack')}
+        <label>Custom digits (overrides size and digits) <input name="custom" placeholder="e.g. 2, 3, 5, 8, 13" /></label>
+        <label>Seed <input name="seed" placeholder="blank = random" /></label>
+        <p class="note">The same seed always makes the same puzzle (daily challenges use the date).</p>
+      </fieldset>
       <div class="row"><button data-k="daily">Today's daily</button><button data-k="cancel">Cancel</button><button data-k="go" class="on">Generate</button></div>`;
-    const val = (name: string) => (d.querySelector(`[name=${name}]`) as HTMLInputElement).value.trim();
+    const val = (name: string) => ((d.querySelector(`[name=${name}]:checked`) ?? d.querySelector(`[name=${name}]`)) as HTMLInputElement).value.trim();
     const submit = (seedOverride?: string) => {
       let digits: DigitSet;
       let size = Number(val('size'));
@@ -287,11 +297,11 @@ export class Hud {
         this.say(`Couldn't use those digits: ${e instanceof Error ? e.message : e}`, 'error');
         return;
       }
-      const rating = val('rating') as Rating | '';
+      const rating = val('rating') as Rating;
       this.h.newGame({
         size, digits, operators: OP_SETS[val('ops')].ops,
         seed: seedOverride ?? (val('seed') || Math.random().toString(36).slice(2)),
-        ratings: rating ? [rating] : undefined,
+        ratings: [rating],
       });
       d.close();
     };

@@ -150,15 +150,15 @@ dialog.options .toggle small { color: var(--muted); font-size: 12px; line-height
 dialog.options .speed { border: none; padding: 0; margin: 4px 0 12px; }
 dialog.options .speed legend { display: grid; gap: 4px; padding: 0; margin-bottom: 8px; font-size: 14px; color: var(--text); }
 dialog.options .speed legend small { color: var(--muted); font-size: 12px; }
-dialog.options .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-dialog.options .segmented label { display: block; margin: 0; cursor: pointer; }
-dialog.options .segmented input { position: absolute; opacity: 0; pointer-events: none; }
-dialog.options .segmented span {
+dialog .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+dialog .segmented label { display: block; margin: 0; cursor: pointer; }
+dialog .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+dialog .segmented span {
   display: block; text-align: center; padding: 9px 0; border-radius: 10px; font-weight: 700; color: var(--text);
   background: var(--panel); border: 1px solid var(--line);
 }
-dialog.options .segmented input:checked + span { background: rgba(79, 216, 255, 0.22); border-color: var(--accent); color: var(--accent); }
-dialog.options .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+dialog .segmented input:checked + span { background: rgba(79, 216, 255, 0.22); border-color: var(--accent); color: var(--accent); }
+dialog .segmented input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 dialog.options .group { display: grid; gap: 4px; padding: 12px 0 4px; border-top: 1px solid var(--line); }
 dialog.options .group h3 { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 /* Sub-options hang off the master switch and dim while it's off. */
@@ -174,3 +174,16 @@ dialog.options .sub.off .toggle { cursor: default; }
   opacity: 0; transition: opacity 0.25s;
 }
 body.desk-input .pad button .key { opacity: 0.45; }
+
+/* New puzzle: size and difficulty as button rows; everything else in a framed "More options" box. */
+dialog.newgame { width: min(460px, calc(100vw - 32px)); }
+dialog.newgame h3 { margin: 14px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+dialog.newgame h2 + h3 { margin-top: 0; }
+dialog.newgame .segmented.sizes { grid-template-columns: repeat(6, 1fr); }
+dialog.newgame .segmented.wrap { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+dialog.newgame .segmented.stack { grid-template-columns: 1fr; }
+dialog.newgame .segmented.stack span { text-align: left; padding: 9px 12px; font-weight: 600; }
+dialog.newgame .segmented span { font-size: 14px; }
+dialog.newgame .more { margin: 16px 0 4px; padding: 4px 12px 8px; border: 1px solid var(--line); border-radius: 12px; }
+dialog.newgame .more legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+dialog.newgame .more h3:first-of-type { margin-top: 6px; }
