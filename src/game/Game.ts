@@ -257,6 +257,22 @@ export class Game {
    * Paste a maybe set into the empty cells among `cells` (drag-copy), as one undo step.
    * Doesn't trigger auto-fill: pasting is entering maybes, not eliminating them.
    */
+  /**
+   * Paste maybes into `cells` (empty, unlocked ones): add `mask`'s digits to what each has, or, if a cell
+   * already has all of them, overwrite it with exactly `mask` (dropping its extras). One undo step.
+   */
+  pasteNotes(cells: number[], mask: number): ActionResult {
+    return this.transact(() => {
+      for (const c of cells) {
+        if (this.values[c] !== EMPTY || this.givens[c]) continue;
+        const cur = this.notes[c];
+        const next = cur && (cur & mask) === mask ? mask : cur | mask;
+        if (next !== cur) this.write(c, EMPTY, next);
+      }
+      return { waves: [[]], eliminated: [], changed: [] };
+    });
+  }
+
   copyNotes(cells: number[], mask: number): ActionResult {
     return this.transact(() => {
       for (const c of cells) if (this.values[c] === EMPTY && this.notes[c] !== mask) this.write(c, EMPTY, mask);

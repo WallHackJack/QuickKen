@@ -475,14 +475,14 @@ board.onDragDrop = ({ source, path, mode, lines, pair }) => {
     sync();
     return { painted: filled, skipped: [], groups, first, action: result };
   } else {
-    // Paste only fills blank cells: it never overwrites a number or maybes already there.
+    // Paste adds the copied maybes to each cell; a cell that already has them all is overwritten with
+    // exactly the copied set. Numbers are left alone.
     const targets = path.slice(1);
     // The cursor follows the paste to the last cell dragged into.
     board.selected = path[path.length - 1];
-    const blank = targets.filter((c) => game!.values[c] === EMPTY && !game!.notes[c]);
-    painted = game.copyNotes(blank, game.notes[source]).changed;
-    skipped = targets.filter((c) => !blank.includes(c));
-    hud.say(painted.length ? `Copied maybes to ${plural(painted.length, 'cell')}. Undo reverts the whole drag.` : 'Paste only fills empty cells; those already have numbers or maybes.');
+    painted = game.pasteNotes(targets, game.notes[source]).changed;
+    skipped = targets.filter((c) => game!.values[c] !== EMPTY);
+    hud.say(painted.length ? `Copied maybes to ${plural(painted.length, 'cell')}. Undo reverts the whole drag.` : 'Those cells already have exactly these maybes (or numbers).');
     // If the paste made a naked group (k cells in one row or column holding the same k maybes, like
     // {1,2} copied across a 3+), apply it to the rest of that line as well.
     const pairAfter = painted.length ? pasteGroup(source, painted) : undefined;
@@ -501,7 +501,8 @@ function pasteGroup(source: number, painted: number[]): DragResult['pairAfter'] 
   const n = g.n;
   const group = [source, ...painted];
   const mask = g.notes[source];
-  if (maskIndices(mask).length !== group.length) return undefined;
+  // A naked group needs every cell holding exactly the same k maybes.
+  if (maskIndices(mask).length !== group.length || group.some((c) => g.notes[c] !== mask)) return undefined;
   const row = group.every((c) => Math.floor(c / n) === Math.floor(source / n));
   const col = group.every((c) => c % n === source % n);
   if (!row && !col) return undefined;

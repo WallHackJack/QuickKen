@@ -346,6 +346,16 @@ describe('Game', () => {
     expect(h.lastChanged()).toContain(0);
   });
 
+  it('paste adds the copied maybes, or overwrites a cell that already has them all', () => {
+    const g = new Game(puzzle);
+    g.copyNotes([1], 0b0100);
+    g.copyNotes([2], 0b1011);
+    g.pasteNotes([1, 2, 3], 0b0011);
+    expect(g.notes[1]).toBe(0b0111); // added
+    expect(g.notes[2]).toBe(0b0011); // had both: overwritten, extra dropped
+    expect(g.notes[3]).toBe(0b0011); // blank: filled
+  });
+
   it('redo can replay a move the way it first played', () => {
     const g = new Game(puzzle);
     const r = g.setValue(0, sol[0]);
