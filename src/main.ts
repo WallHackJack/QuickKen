@@ -540,10 +540,14 @@ window.addEventListener('keydown', (e) => {
   else if (plain && key === 'h') handlers.hint();
   // Q W E / A S D enter digits like the pad's layout; Shift makes it a maybe, as with number keys.
   else if (letterDigit >= 0) digitAction(s, letterDigit, notesMode !== e.shiftKey);
-  else if (/^[0-9]$/.test(e.code.replace('Digit', '').replace('Numpad', ''))) {
-    const k = Number(e.code.replace('Digit', '').replace('Numpad', ''));
-    const d = k === 0 ? 9 : k - 1;
-    if (d >= n) return;
+  else if (/^[0-9]$/.test(e.code.replace('Digit', '').replace('Numpad', '')) || e.code === 'Backquote') {
+    // When every digit is a single numeral (1–6, 0–5, …) a key means that number, and ` (~) is also 0,
+    // so a 0-based set doesn't put 0 on the 1 key. Other sets (primes, tens, …) go by position: 1 is
+    // the first digit, 0 the tenth.
+    const k = e.code === 'Backquote' ? 0 : Number(e.code.replace('Digit', '').replace('Numpad', ''));
+    const labels = game.puzzle.digits.labels;
+    const d = labels.every((l) => /^[0-9]$/.test(l)) ? labels.indexOf(String(k)) : e.code === 'Backquote' ? -1 : k === 0 ? 9 : k - 1;
+    if (d < 0 || d >= n) return;
     digitAction(s, d, notesMode !== e.shiftKey);
   } else return;
   e.preventDefault();
