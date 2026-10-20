@@ -263,8 +263,8 @@ export class CageView extends Container {
   mode = 0;
   /** Full and wrong (red outline, darker fill, red label) or full and right (subtle green border). */
   state: 'open' | 'ok' | 'wrong' = 'open';
-  /** Resting colours: × and ÷ cages sit a little cooler than + and − ones so they read apart. */
-  private readonly base: { fill: number; edge: number };
+  /** Resting colours: × and ÷ cages sit cooler than + and − ones so they read apart, in maybe mode too. */
+  private readonly base: { fill: number; edge: number; fillMaybe: number; edgeMaybe: number };
   readonly center: { x: number; y: number };
   readonly loops: [number, number][][];
   private readonly stroke: number;
@@ -275,7 +275,9 @@ export class CageView extends Container {
     const n = game.n;
     this.loops = cageLoops(cage.cells, n);
     this.stroke = Math.max(1.5, cs * 0.03);
-    this.base = cage.op === 'mul' || cage.op === 'div' ? { fill: 0x0c2640, edge: 0x4fc8f0 } : { fill: CAGE.fill, edge: CAGE.edge };
+    this.base = cage.op === 'mul' || cage.op === 'div'
+      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x1a1f4a, edgeMaybe: 0x8fa2ff }
+      : { fill: CAGE.fill, edge: CAGE.edge, fillMaybe: CAGE.fillMaybe, edgeMaybe: CAGE.edgeMaybe };
     const cx = cage.cells.reduce((s, c) => s + (c % n) + 0.5, 0) / cage.cells.length;
     const cy = cage.cells.reduce((s, c) => s + Math.floor(c / n) + 0.5, 0) / cage.cells.length;
     this.center = { x: cx * cs, y: cy * cs };
@@ -324,8 +326,8 @@ export class CageView extends Container {
     for (const loop of this.loops) {
       // Inset by half the stroke so neighbouring cages' outlines meet flush, with no gap.
       const pts = insetLoop(loop, this.stroke / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]);
-      let fill = mix(mix(this.base.fill, CAGE.fillMaybe, this.mode), CAGE.fillGlow, glow);
-      let edge = mix(mix(this.base.edge, CAGE.edgeMaybe, this.mode), CAGE.edgeGlow, glow);
+      let fill = mix(mix(this.base.fill, this.base.fillMaybe, this.mode), CAGE.fillGlow, glow);
+      let edge = mix(mix(this.base.edge, this.base.edgeMaybe, this.mode), CAGE.edgeGlow, glow);
       if (this.state === 'wrong') {
         fill = mix(fill, 0x12040a, 0.6);
         edge = mix(ERROR, edge, glow);
