@@ -1,5 +1,5 @@
 import './ui/style.css';
-import { primeFactors } from './game/factor';
+import { cageFactors } from './game/factor';
 import { cageLabel } from './engine/puzzle';
 import { Application, Container } from 'pixi.js';
 import { maskIndices } from './engine/bits';
@@ -419,9 +419,10 @@ board.onCellReselect = () => handlers.toggleNotes();
 // Long-press a × cage: its target's prime factorisation.
 board.onCageHold = (ci) => {
   if (!game) return;
-  const t = game.puzzle.cages[ci].target;
+  const cage = game.puzzle.cages[ci];
+  const t = cage.target;
   // A negative target: factor its size, keep the real (red) number in front, and say why.
-  const f = primeFactors(Math.abs(t));
+  const f = cageFactors(t, game.puzzle.digits.values, cage.cells.length);
   hud.sayMath(String(t), f ? `= ${f}` : 'is prime', t < 0 ? { negative: true, note: "Can't accurately factor a negative number" } : {});
 };
 
