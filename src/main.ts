@@ -413,6 +413,14 @@ board.onCellTap = (c) => {
   sync();
 };
 board.onCellReselect = () => handlers.toggleNotes();
+board.onConfirmCell = (c, d) => {
+  if (!game || solvedAt) return;
+  board.selected = c;
+  board.disproven.delete(c);
+  hud.say(`The rest of those lines can only be ${game.puzzle.digits.labels[d]}: filled it in.`);
+  apply(game.setValue(c, d));
+  sync();
+};
 
 // Drag from a cell: on release, copies its maybes into the dragged cells, or, when the drag covers
 // a whole row/column, fills maybes in that line. Either way it's one undo step.

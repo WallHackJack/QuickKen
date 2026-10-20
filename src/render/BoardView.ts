@@ -55,6 +55,8 @@ const CLAUDE = 0xff9f5a;
 const CLAUDE_LIGHT = 0xffd9b8;
 // Hidden cages: leftover cells of a band whose sum follows from the + cages selected in it.
 const HIDDEN = 0xffc94f;
+/** A leftover that pins a single cell's digit (released, it's entered). */
+const CONFIRM = 0x8cff6b;
 // Errors: clashes, wrong cages, chains broken by a mistake.
 const ERROR = 0xff4d6d;
 
@@ -347,6 +349,8 @@ export class BoardView extends Container {
   onDragStart?: (cell: number) => { blueprint: boolean } | null;
   /** The drag was released: apply it. Nothing changes on the board before this. */
   onDragDrop?: (drop: DragDrop) => DragResult;
+  /** A selection's leftover was one empty cell with a known digit: enter it (on release). */
+  onConfirmCell?: (cell: number, digit: number) => void;
   private drag: DragState | null = null;
   /** Shared outline + tint over every cell the drag will affect. */
   private dragLayer = new Graphics();
@@ -516,7 +520,8 @@ export class BoardView extends Container {
     }
     this.ghost = this.showRegionSum(region);
     // The hidden cage those sums imply, outlined as boldly as the selection.
-    if (this.ghost) this.drawHidden(g, this.ghost.cells);
+    // A leftover that pins one cell's digit is green: releasing enters it.
+    if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
     this.setGhostLabels(this.ghost);
   }
 
@@ -596,14 +601,25 @@ export class BoardView extends Container {
   // ---------- hidden cages (shown only while selected) ----------
 
   /** Amber outline (a touch lighter than the selection's) + light tint around a hidden cage. */
-  private drawHidden(g: Graphics, cells: number[]): void {
+  private drawHidden(g: Graphics, cells: number[], color = HIDDEN): void {
     const cs = this.cs;
     const n = this.game.n;
     const w = Math.max(2, cs * 0.045);
-    for (const c of cells) g.rect((c % n) * cs, Math.floor(c / n) * cs, cs, cs).fill({ color: HIDDEN, alpha: 0.12 });
+    for (const c of cells) g.rect((c % n) * cs, Math.floor(c / n) * cs, cs, cs).fill({ color, alpha: 0.12 });
     for (const loop of cageLoops(cells, n)) {
-      g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color: HIDDEN, alpha: 0.7, join: 'miter' });
+      g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color, alpha: 0.7, join: 'miter' });
     }
+  }
+
+  /**
+   * The digit a leftover pins down: when it's a single empty (unlocked) cell whose total is one of the
+   * puzzle's digits, that's the cell's answer. -1 otherwise.
+   */
+  private confirmDigit(h: HiddenCage | null): number {
+    if (!h || h.cells.length !== 1) return -1;
+    const c = h.cells[0];
+    if (this.game.values[c] !== EMPTY || this.game.givens[c]) return -1;
+    return this.game.puzzle.digits.values.findIndex((v) => Math.abs(v - h.target) < 1e-9);
   }
 
   /** Groups of edge-connected cells (a hidden cage can be in several separate pieces). */
@@ -640,12 +656,15 @@ export class BoardView extends Container {
     box.removeChildren().forEach((c) => c.destroy({ children: true }));
     if (!h) return;
     const n = this.game.n, cs = this.cs;
+    // One cell: its digit, plainly (no "+"), green if it can be entered.
+    const single = h.cells.length === 1;
+    const edge = this.confirmDigit(h) >= 0 ? CONFIRM : HIDDEN;
     for (const piece of this.pieces(h.cells)) {
       const pill = new Container();
-      const text = new Text({ text: `${h.target}+`, style: { fontFamily: FONT, fontSize: Math.max(11, cs * 0.24), fill: 0xffffff, fontWeight: '800' } });
+      const text = new Text({ text: single ? `${h.target}` : `${h.target}+`, style: { fontFamily: FONT, fontSize: Math.max(11, cs * 0.24), fill: 0xffffff, fontWeight: '800' } });
       text.anchor.set(0.5);
       const w = Math.min(cs * 0.9, text.width + cs * 0.22), hgt = text.height + cs * 0.08;
-      const bg = new Graphics().roundRect(-w / 2, -hgt / 2, w, hgt, hgt / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: HIDDEN, alpha: 0.95 });
+      const bg = new Graphics().roundRect(-w / 2, -hgt / 2, w, hgt, hgt / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: edge, alpha: 0.95 });
       pill.addChild(bg, text);
       pill.position.set(
         (piece.reduce((s, c) => s + (c % n) + 0.5, 0) / piece.length) * cs,
@@ -660,6 +679,7 @@ export class BoardView extends Container {
   private endDrag(): void {
     if (this.sumPill && !this.sumPill.destroyed) this.sumPill.visible = false;
     this.setGhostLabels(null);
+    const ghost = this.ghost;
     this.ghost = null;
     const d = this.drag;
     this.drag = null;
@@ -669,6 +689,12 @@ export class BoardView extends Container {
     this.cellViews[d.source]?.flash.clear();
     if (!this.dragLayer.destroyed) this.dragLayer.clear();
     const plan = this.dragPlan(d);
+    // A plain selection whose leftover pins one cell: releasing enters that digit.
+    const sure = plan.mode === 'none' ? this.confirmDigit(ghost) : -1;
+    if (sure >= 0 && ghost) {
+      this.onConfirmCell?.(ghost.cells[0], sure);
+      return;
+    }
     const result = this.onDragDrop?.(plan) ?? { painted: [], skipped: [] };
     // The line's mint border grows and fades rather than vanishing.
     if (plan.mode === 'line') this.outlinePulse(d.path, LINE);
