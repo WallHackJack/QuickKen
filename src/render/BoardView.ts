@@ -1286,6 +1286,8 @@ export class BoardView extends Container {
       const sameLine = Math.floor(c / n) === Math.floor(sel / n) || c % n === sel % n;
       v.highlight.clear();
       if (c === this.dragSource) v.highlight.rect(0, 0, cs, cs).fill({ color: MAYBE, alpha: 0.3 });
+      // Selecting a cell Check marked wrong: pink, so it still reads as the red cell.
+      else if (c === sel && this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff6fcf, alpha: 0.38 });
       else if (c === sel) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.22 });
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
