@@ -1389,7 +1389,14 @@ export class BoardView extends Container {
           if (!(back & (1 << d))) return;
           this.tweens.add({ duration: 200, ease: ease.outBack, update: (v) => !t.destroyed && t.scale.set(v) });
         });
-        if (i < 8) this.pointLight(b.c, UNDO_RED, 260, cs * 0.35, 0.55);
+        if (i < 8) {
+          if (back) {
+            // A small light at each maybe coming back (one light, a point per maybe; up to 6).
+            const n = this.game.n, ox = (b.c % n) * cs, oy = Math.floor(b.c / n) * cs;
+            const pts = view.notes.filter((_, d) => back & (1 << d)).slice(0, 6).map((t) => [ox + t.x, oy + t.y, ox + t.x, oy + t.y]);
+            this.flashLight(pts, UNDO_RED, 260, cs * 0.14, 0.6);
+          } else this.pointLight(b.c, UNDO_RED, 260, cs * 0.35, 0.55);
+        }
         const { x, y } = this.cellCenter(b.c);
         if (back) this.particles.burst(x, y, { count: 4, colors: [UNDO_RED, 0xffb3bd], speed: [cs * 0.3, cs * 0.9], life: [0.15, 0.3], size: [cs * 0.03, cs * 0.07], drag: 5 });
       });
