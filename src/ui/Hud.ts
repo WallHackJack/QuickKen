@@ -413,13 +413,16 @@ export class Hud {
   }
 
   /** A maths result, centred: a big leading number and the rest after it (e.g. "24" "= 2³ × 3"). */
-  sayMath(lead: string, rest: string): void {
+  sayMath(lead: string, rest: string, o: { negative?: boolean; note?: string } = {}): void {
     if (this.message.classList.contains('bug') && !this.message.classList.contains('copied')) return;
     this.message.className = 'math';
-    this.message.replaceChildren(
-      Object.assign(document.createElement('span'), { className: 'lead', textContent: lead }),
+    const line = Object.assign(document.createElement('div'), { className: 'line' });
+    line.append(
+      Object.assign(document.createElement('span'), { className: o.negative ? 'lead negative' : 'lead', textContent: lead }),
       Object.assign(document.createElement('span'), { className: 'rest', textContent: rest }),
     );
+    this.message.replaceChildren(line);
+    if (o.note) this.message.append(Object.assign(document.createElement('div'), { className: 'note', textContent: o.note }));
   }
 
   /** Show a code error in the message pane, glowing red. Tapping it selects all of it and copies it. */

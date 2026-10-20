@@ -420,8 +420,9 @@ board.onCellReselect = () => handlers.toggleNotes();
 board.onCageHold = (ci) => {
   if (!game) return;
   const t = game.puzzle.cages[ci].target;
-  const f = primeFactors(t);
-  hud.sayMath(String(t), f ? `= ${f}` : 'is prime');
+  // A negative target: factor its size, keep the real (red) number in front, and say why.
+  const f = primeFactors(Math.abs(t));
+  hud.sayMath(String(t), f ? `= ${f}` : 'is prime', t < 0 ? { negative: true, note: "Can't accurately factor a negative number" } : {});
 };
 
 board.onConfirmCell = (c, d) => {

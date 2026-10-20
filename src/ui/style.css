@@ -62,7 +62,10 @@ html, body {
 }
 #message.hint { color: var(--warn); }
 /* Maths results (e.g. a × cage's prime factors): centred and larger. */
-#message.math { display: flex; align-items: center; justify-content: center; gap: 0.35em; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+#message.math { display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; color: var(--text); letter-spacing: 0.02em; }
+#message.math .line { display: flex; align-items: center; justify-content: center; gap: 0.35em; }
+#message.math .lead.negative { color: #ff6b7d; }
+#message.math .note { font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 #message.math .lead { font-size: 34px; font-weight: 800; line-height: 1; }
 #message.math .rest { font-size: 24px; }
 #message.error { color: #ff7d95; }
