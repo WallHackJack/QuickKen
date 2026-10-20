@@ -14,7 +14,8 @@ npm run dev
 ```
 
 Tests: `npx vitest run`. Every push to `main` builds the game and publishes it to GitHub Pages
-(see `.github/workflows/pages.yml`).
+(see `.github/workflows/pages.yml`). `npm run artifact` builds the claude.ai Artifact page into
+`artifact/` (not committed).
 
 - `src/engine/` puzzle model, generator and solver
 - `src/game/` game state, undo history, guesses, saving
