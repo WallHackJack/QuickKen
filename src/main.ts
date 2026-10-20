@@ -1,5 +1,5 @@
 import './ui/style.css';
-import { primeFactorText } from './game/factor';
+import { primeFactors } from './game/factor';
 import { cageLabel } from './engine/puzzle';
 import { Application, Container } from 'pixi.js';
 import { maskIndices } from './engine/bits';
@@ -420,7 +420,8 @@ board.onCellReselect = () => handlers.toggleNotes();
 board.onCageHold = (ci) => {
   if (!game) return;
   const t = game.puzzle.cages[ci].target;
-  hud.say(primeFactorText(t), 'math');
+  const f = primeFactors(t);
+  hud.sayMath(String(t), f ? `= ${f}` : 'is prime');
 };
 
 board.onConfirmCell = (c, d) => {

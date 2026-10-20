@@ -412,6 +412,16 @@ export class Hud {
     this.message.className = kind;
   }
 
+  /** A maths result, centred: a big leading number and the rest after it (e.g. "24" "= 2³ × 3"). */
+  sayMath(lead: string, rest: string): void {
+    if (this.message.classList.contains('bug') && !this.message.classList.contains('copied')) return;
+    this.message.className = 'math';
+    this.message.replaceChildren(
+      Object.assign(document.createElement('span'), { className: 'lead', textContent: lead }),
+      Object.assign(document.createElement('span'), { className: 'rest', textContent: rest }),
+    );
+  }
+
   /** Show a code error in the message pane, glowing red. Tapping it selects all of it and copies it. */
   reportBug(text: string): void {
     this.message.textContent = text;

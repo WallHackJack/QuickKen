@@ -1,16 +1,16 @@
-// Prime factorisation text for × cages (shown on a long-press).
+// Prime factorisation of a × cage's target (shown on a long-press), e.g. 24 → "2³ × 3".
 
-/** "24× = 2 × 2 × 2 × 3 = 2³ × 3" (the powers part only when a prime repeats). */
-export function primeFactorText(target: number): string {
-  if (!Number.isInteger(target) || target < 2) return `${target}×`;
+/** The prime factorisation in powers form ("2³ × 3"), or null for a prime (or anything below 2). */
+export function primeFactors(target: number): string | null {
+  if (!Number.isInteger(target) || target < 2) return null;
   const primes: number[] = [];
   let m = target;
   for (let p = 2; p * p <= m; p++) while (m % p === 0) primes.push(p), (m /= p);
   if (m > 1) primes.push(m);
-  if (primes.length === 1) return `${target}× is prime`;
+  if (primes.length === 1) return null;
   const sup = (k: number) => String(k).replace(/\d/g, (d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(d)]);
-  const counts = [...new Set(primes)].map((p) => [p, primes.filter((q) => q === p).length]);
-  const powers = counts.map(([p, k]) => (k > 1 ? `${p}${sup(k)}` : `${p}`)).join(' × ');
-  const flat = primes.join(' × ');
-  return counts.some(([, k]) => k > 1) ? `${target}× = ${flat} = ${powers}` : `${target}× = ${flat}`;
+  return [...new Set(primes)].map((p) => {
+    const k = primes.filter((q) => q === p).length;
+    return k > 1 ? `${p}${sup(k)}` : `${p}`;
+  }).join(' × ');
 }
