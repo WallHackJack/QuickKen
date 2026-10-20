@@ -119,7 +119,7 @@ const handlers: HudHandlers = {
       const where = `row ${Math.floor(origin.cell / game.n) + 1}, column ${(origin.cell % game.n) + 1} (${cageLabel(cage)})`;
       hud.say(`Undid guess ${n}: it began with ${label ? label + ' in ' : ''}${where}.${back}`, 'hint');
       // After the rewind reaches the guess's first move (it rewinds last), plus its spin-out.
-      board.markDisproven(origin.cell, label, before.length * 28 + 220);
+      board.markDisproven(origin.cell, label, origin.digit, before.length * 28 + 220);
     } else hud.say(`Undid guess ${n}.${back}`);
   },
   check: () => {

@@ -191,6 +191,8 @@ class CellView extends Container {
   value: Text;
   notes: BitmapText[] = [];
   cross: Text;
+  /** A small red X over one maybe (the digit an undone guess tried, when the cell went back to maybes). */
+  noteCross: Text;
 
   constructor(readonly cell: number, cs: number, labels: string[]) {
     super();
@@ -235,6 +237,10 @@ class CellView extends Container {
     this.cross.alpha = 0.9;
     this.cross.visible = false;
     this.addChild(this.cross);
+    this.noteCross = new Text({ text: '✕', style: { fontFamily: FONT, fontSize: Math.max(9, cs * 0.24), fill: 0xff4d6d, fontWeight: '800' } });
+    this.noteCross.anchor.set(0.5);
+    this.noteCross.visible = false;
+    this.addChild(this.noteCross);
   }
 
   /** Glow the digit (if `on`) under its text. */
@@ -372,7 +378,7 @@ export class BoardView extends Container {
    * Cells where an undone guess started, with the digit it tried: shown in place, light red with a red
    * X (display only; the cell is empty). Clear or any entry in the cell removes it.
    */
-  disproven = new Map<number, string>();
+  disproven = new Map<number, { label: string; digit: number }>();
   private comboText: Text | null = null;
   private chain: PlayingChain | null = null;
   /** The hidden values / ghost maybes the playing chain last drew (see refresh). */
@@ -1235,19 +1241,25 @@ export class BoardView extends Container {
       v.value.tint = conflicts.has(c) ? 0xff4d6d : done ? mix(color, 0x8cff6b, 0.35) : color;
       v.cross.visible = impossible.has(c) && !show;
       if (this.disproven.has(c) && val !== EMPTY) this.disproven.delete(c);
-      const mark = this.disproven.get(c);
-      if (mark && !hidden.has(c)) {
-        v.value.text = mark;
+      // An undone guess's digit: crossed out over its maybe if the cell went back to maybes holding it,
+      // otherwise shown full size, light red, with a red X.
+      const mark = val === EMPTY && !hidden.has(c) ? this.disproven.get(c) : undefined;
+      const onNote = !!mark && mark.digit >= 0 && has(g.notes[c], mark.digit);
+      const bigMark = !!mark && !onNote;
+      if (bigMark) {
+        v.value.text = mark.label;
         v.value.tint = 0xff9aa8;
         v.cross.visible = true;
       }
+      v.noteCross.visible = onNote;
+      if (onNote) v.noteCross.position.copyFrom(v.notes[mark.digit].position);
       v.glowValue(v.value.text, !!ch && show && ch.after.value !== ch.before.value);
       const shownNotes = g.notes[c] | (ghost?.get(c) ?? 0);
       const added = ch ? ch.after.notes & ~(ch.before.value === ch.after.value ? ch.before.notes : 0) : 0;
       const onlyRemoved = !!ch && !added && ch.before.value === ch.after.value && (ch.before.notes & ~ch.after.notes) !== 0;
       v.notes.forEach((t, d) => {
-        t.visible = (val === EMPTY || hidden.has(c)) && !mark && has(shownNotes, d);
-        t.tint = c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : 0xb9c3e6;
+        t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
+        t.tint = onNote && d === mark.digit ? 0xff9aa8 : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
@@ -1404,12 +1416,12 @@ export class BoardView extends Container {
   }
 
   /** A guess was undone: its starting cell pulses red and keeps the tried digit, crossed out in red. */
-  markDisproven(cell: number, label: string, delay = 0): void {
+  markDisproven(cell: number, label: string, digit = -1, delay = 0): void {
     if (delay) {
-      this.tweens.after(delay, () => this.markDisproven(cell, label));
+      this.tweens.after(delay, () => this.markDisproven(cell, label, digit));
       return;
     }
-    if (label) this.disproven.set(cell, label);
+    if (label) this.disproven.set(cell, { label, digit });
     this.refresh();
     const view = this.cellViews[cell];
     if (!view) return;
