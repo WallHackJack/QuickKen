@@ -41,14 +41,18 @@ float fbm(vec2 p) {
 void main() {
   vec2 px = vUV * uResolution;
   vec2 p = px / min(uResolution.x, uResolution.y);
-  float t = uTime * 0.05;
-  vec2 q = vec2(fbm(p * 2.0 + t), fbm(p * 2.0 - t + 3.7));
-  float n = fbm(p * 2.5 + q * 1.5);
-  vec3 deep = vec3(0.03, 0.03, 0.09);
-  vec3 violet = vec3(0.22, 0.08, 0.38);
-  vec3 teal = vec3(0.02, 0.32, 0.42);
-  vec3 col = mix(deep, violet, smoothstep(0.35, 0.8, n));
-  col = mix(col, teal, smoothstep(0.55, 0.95, q.x) * 0.6);
+  float t = uTime * 0.09;
+  // Two layers of flow that warp each other: the fog rolls and folds rather than sliding.
+  vec2 q = vec2(fbm(p * 2.0 + vec2(t, -t * 0.7)), fbm(p * 2.0 + vec2(-t * 0.8, t) + 3.7));
+  vec2 r = vec2(fbm(p * 3.0 + q * 2.0 + t * 0.6), fbm(p * 3.0 - q * 1.6 - t * 0.4 + 1.3));
+  float n = fbm(p * 2.5 + r * 1.8);
+  vec3 deep = vec3(0.02, 0.02, 0.07);
+  vec3 violet = vec3(0.30, 0.10, 0.52);
+  vec3 teal = vec3(0.03, 0.42, 0.56);
+  vec3 col = mix(deep, violet, smoothstep(0.3, 0.85, n));
+  col = mix(col, teal, smoothstep(0.5, 0.95, r.x) * 0.65);
+  // Bright folds where the fog is thickest.
+  col += vec3(0.16, 0.12, 0.32) * pow(n, 4.0) * 2.2;
   // Maybe mode: lean the palette violet.
   col = mix(col, col * vec3(1.45, 0.95, 0.5) + vec3(0.06, 0.025, 0.0), uMaybe);
   col *= 0.85 + 0.35 * uEnergy;

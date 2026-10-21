@@ -63,6 +63,18 @@ uniform vec4 uSrc[${MAX_SRC}];
 uniform vec4 uRange[${MAX_SRC}];
 uniform float uCount;
 uniform float uCell;
+uniform float uTime;
+float fh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fn(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fh(i), fh(i + vec2(1.0, 0.0)), u.x), mix(fh(i + vec2(0.0, 1.0)), fh(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+/** Thin drifting fog, 0..1. */
+float fog(vec2 p) {
+  vec2 s = p / (uCell * 1.6);
+  return 0.55 * fn(s + vec2(uTime * 0.12, -uTime * 0.05)) + 0.3 * fn(s * 2.1 - vec2(uTime * 0.07, uTime * 0.1)) + 0.15 * fn(s * 4.3 + uTime * 0.2);
+}
 ${RIPPLE_GLSL}
 
 float lum(vec2 uv) { return dot(texture(uTexture, uv).rgb, vec3(0.3, 0.59, 0.11)); }
@@ -85,7 +97,7 @@ void main(void) {
   // pixels just outside a stroke; lighting those drew a rim a pixel or two off every glyph.
   float stroke = smoothstep(0.12, 0.45, h);
 
-  vec3 diff = vec3(0.0), spec = vec3(0.0), halo = vec3(0.0);
+  vec3 diff = vec3(0.0), spec = vec3(0.0), halo = vec3(0.0), air = vec3(0.0);
   for (int s = 0; s < ${MAX_SRC}; s++) {
     if (float(s) >= uCount) break;
     vec4 src = uSrc[s];   // rgb * level, radius
@@ -116,12 +128,17 @@ void main(void) {
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
     spec += src.rgb * att * pow(max(dot(N, H), 0.0), 16.0);
     halo += src.rgb * exp(-best / (2.0 * rg.w * rg.w)) * (inside ? 0.3 : 1.0);
+    // Light reaching the air here (for the fog).
+    air += src.rgb * att;
   }
 
   // Strokes are glossy: they reflect mostly the light's colour, not their own. The dark board only
   // picks up a little of it.
   vec3 albedo = mix(base.rgb, vec3(h), 0.6 * stroke);
   vec3 lit = base.rgb + albedo * diff * (0.6 + 1.4 * stroke) + spec * 0.9 * stroke * h + halo * 0.35;
+  // Fog over the board: barely there on its own, but lights scatter in it strongly.
+  float f = fog(p);
+  lit += vec3(0.025, 0.03, 0.05) * f * base.a + air * f * f * 1.1;
   // Crests catch light, troughs fall into shade, and slopes facing the top-left glint.
   lit *= 1.0 + rip.z * 0.25;
   lit += ripTint * (max(rip.z, 0.0) * 0.12 + max(dot(rip.xy, vec2(-0.7, -0.7)), 0.0) * 0.8);
@@ -141,7 +158,7 @@ function fitSegments(segs: number[][]): number[][] {
 
 export class Lighting {
   private filter: Filter;
-  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number };
+  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number; uTime: number };
   private sources: Source[] = [];
   private cs = 40;
   private buttons: HTMLElement[] = [];
@@ -162,6 +179,7 @@ export class Lighting {
           uRange: { value: new Float32Array(MAX_SRC * 4), type: 'vec4<f32>', size: MAX_SRC },
           uCount: { value: 0, type: 'f32' },
           uCell: { value: 40, type: 'f32' },
+          uTime: { value: 0, type: 'f32' },
         },
       },
       resolution: 'inherit',
@@ -193,6 +211,7 @@ export class Lighting {
       this.target.filters = [this.filter];
       this.buttons = [...this.hud.querySelectorAll<HTMLElement>('button')];
     }
+    this.u.uTime += dtMs / 1000;
     const { uSeg, uSrc, uRange } = this.u;
     const cs = this.cs;
     const lights: { segs: number[][]; rgb: number[]; level: number }[] = [];
