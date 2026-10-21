@@ -1412,21 +1412,38 @@ export class BoardView extends Container {
       const delay = i * UNDO_STEP_MS;
       const nowNotes = view.notes.reduce((m, t, d) => (t.visible ? m | (1 << d) : m), 0);
       const back = nowNotes & ~b.notes;
-      // Maybes coming back wait (hidden) for their step.
-      view.notes.forEach((t, d) => back & (1 << d) && t.scale.set(0));
+      // Maybes the undo takes away (ones the move had added); only while the cell is still empty.
+      const gone = view.value.text ? 0 : b.notes & ~nowNotes;
+      // Maybes coming back wait (hidden) for their step; maybes going away stay until theirs.
+      view.notes.forEach((t, d) => {
+        if (back & (1 << d)) t.scale.set(0);
+        if (gone & (1 << d)) t.visible = true;
+      });
       // A digit going away stays on screen (as its rewinding copy) until its step.
       if (b.text && !view.value.text) this.rewindCell(b.c, b.text, b.tint, UNDO_RED, delay);
       this.tweens.after(delay, () => {
         if (view.destroyed) return;
         view.notes.forEach((t, d) => {
-          if (!(back & (1 << d))) return;
-          this.tweens.add({ duration: 200, ease: ease.outBack, update: (v) => !t.destroyed && t.scale.set(v) });
+          if (back & (1 << d)) this.tweens.add({ duration: 200, ease: ease.outBack, update: (v) => !t.destroyed && t.scale.set(v) });
+          if (gone & (1 << d)) {
+            // Destroyed like any removed maybe: dust from where it sat as it shrinks away.
+            this.dustNote(b.c, d);
+            this.tweens.add({
+              duration: NOTE_FADE_MS, ease: ease.outCubic,
+              update: (v) => !t.destroyed && t.scale.set(1 - v),
+              done: () => {
+                if (t.destroyed) return;
+                t.scale.set(1);
+                t.visible = has(this.game.notes[b.c], d) && this.game.values[b.c] === EMPTY;
+              },
+            });
+          }
         });
         if (i < 8) {
-          if (back) {
-            // A small light at each maybe coming back (one light, a point per maybe; up to 6).
+          if (back | gone) {
+            // A small light at each maybe coming back or going away (one light, a point each; up to 6).
             const n = this.game.n, ox = (b.c % n) * cs, oy = Math.floor(b.c / n) * cs;
-            const pts = view.notes.filter((_, d) => back & (1 << d)).slice(0, 6).map((t) => [ox + t.x, oy + t.y, ox + t.x, oy + t.y]);
+            const pts = view.notes.filter((_, d) => (back | gone) & (1 << d)).slice(0, 6).map((t) => [ox + t.x, oy + t.y, ox + t.x, oy + t.y]);
             this.flashLight(pts, UNDO_RED, 260, cs * 0.14, 0.6);
           } else this.pointLight(b.c, UNDO_RED, 260, cs * 0.35, 0.55);
         }
