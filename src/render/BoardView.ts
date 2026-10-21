@@ -13,7 +13,7 @@ import type { Particles } from './Particles';
 import { ease, type Tweens } from './Tweens';
 
 /** Ink for normal entries, then for guesses: one guess colour (violet), whatever the guess depth. */
-export const GUESS_COLOR = 0xc77dff;
+export const GUESS_COLOR = 0xffd23f;
 export const LAYER_COLORS = [0xeaf2ff, GUESS_COLOR];
 const layerColor = (l: number) => LAYER_COLORS[Math.min(l, LAYER_COLORS.length - 1)];
 const WAVE_COLORS = [[0xffffff, 0x9fe8ff], [0x4fd8ff, 0x9fffe0], [0x8cff6b, 0xfff36b], [0xffc94f, 0xff8a3d], [0xff5cc8, 0xff3d6e], [0xb18cff, 0xffffff]];
@@ -139,18 +139,20 @@ const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe
 const COMPLETE_INK = 0xc8ffb8;
 
 /**
- * Dashes around a square (top-left at `at`, `side` long): each side splits into whole dash+gap units,
- * 80% dash, so corners line up. Caller strokes it.
+ * Dashes around a square (top-left at `at`, `side` long), about 80% dash. Each side starts and ends
+ * on a dash running into the corner (stretched by half the line width), so corners are solid. Caller
+ * strokes it with flat caps.
  */
-function dashedSquare(g: Graphics, at: number, side: number, unit: number): void {
+function dashedSquare(g: Graphics, at: number, side: number, unit: number, width: number): void {
   const count = Math.max(1, Math.round(side / unit));
-  const step = side / count, dash = step * 0.8;
+  // count dashes and count-1 gaps, gap = a quarter dash.
+  const dash = side / (count + (count - 1) / 4), gap = dash / 4;
   const corners: [number, number, number, number][] = [[at, at, 1, 0], [at + side, at, 0, 1], [at + side, at + side, -1, 0], [at, at + side, 0, -1]];
   for (const [x, y, dx, dy] of corners) {
     for (let i = 0; i < count; i++) {
-      // Centre each dash in its unit so the gaps meet at the corners evenly.
-      const t0 = i * step + (step - dash) / 2;
-      g.moveTo(x + dx * t0, y + dy * t0).lineTo(x + dx * (t0 + dash), y + dy * (t0 + dash));
+      const t0 = i * (dash + gap) - (i === 0 ? width / 2 : 0);
+      const t1 = i * (dash + gap) + dash + (i === count - 1 ? width / 2 : 0);
+      g.moveTo(x + dx * t0, y + dy * t0).lineTo(x + dx * t1, y + dy * t1);
     }
   }
 }
@@ -1300,7 +1302,9 @@ export class BoardView extends Container {
       v.value.text = show ? g.puzzle.digits.labels[val] : '';
       // Digits of a completed cage lean green.
       const done = this.cageViews[g.topo.cageOf[c]]?.state === 'ok';
-      v.value.tint = conflicts.has(c) ? 0xff4d6d : done ? mix(color, 0x8cff6b, 0.35) : color;
+      // A running guess's digits keep the plain guess colour (no completed-cage green mixed in).
+      const inGuess = g.layers[c] > 0 && g.layers[c] === g.layer;
+      v.value.tint = conflicts.has(c) ? 0xff4d6d : done && !inGuess ? mix(color, 0x8cff6b, 0.35) : color;
       v.cross.visible = impossible.has(c) && !show;
       if (this.disproven.has(c) && val !== EMPTY) this.disproven.delete(c);
       // An undone guess's digit: crossed out over its maybe if the cell went back to maybes holding it,
@@ -1340,9 +1344,9 @@ export class BoardView extends Container {
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
       else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.08 });
       if (this.guessOrigin?.cell === c) {
-        // The running guess's first digit: a dashed square a little inside the cell (80% dash, flat ends).
-        const w = Math.max(1.5, cs * 0.032), inset = cs * 0.09, side = cs - inset * 2;
-        dashedSquare(v.highlight, inset, side, Math.max(4, side / 7));
+        // The running guess's first digit: a dashed square just inside the cell edge (80% dash, solid corners).
+        const w = Math.max(1.5, cs * 0.032), inset = w / 2 + cs * 0.025, side = cs - inset * 2;
+        dashedSquare(v.highlight, inset, side, Math.max(4, side / 6), w);
         v.highlight.stroke({ width: w, color: this.guessOrigin.color, alpha: 0.9, cap: 'butt' });
       }
       if (this.olderGuessOrigins.includes(c)) {
