@@ -1340,7 +1340,7 @@ export class BoardView extends Container {
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
-      else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.08 });
+      else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: this.maybeTarget ? MAYBE : SELECT_RING, alpha: 0.1 });
       if (this.guessOrigin?.cell === c) {
         // The running guess's first digit: a dashed square just inside the cell edge (80% dash, solid corners).
         const w = Math.max(1.5, cs * 0.032), inset = w / 2 + cs * 0.025, side = cs - inset * 2;
