@@ -138,6 +138,23 @@ const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe
 /** Label ink of a completed cage (its digits get a lighter green lean). */
 const COMPLETE_INK = 0xc8ffb8;
 
+/**
+ * Dashes around a square (top-left at `at`, `side` long): each side splits into whole dash+gap units,
+ * 80% dash, so corners line up. Caller strokes it.
+ */
+function dashedSquare(g: Graphics, at: number, side: number, unit: number): void {
+  const count = Math.max(1, Math.round(side / unit));
+  const step = side / count, dash = step * 0.8;
+  const corners: [number, number, number, number][] = [[at, at, 1, 0], [at + side, at, 0, 1], [at + side, at + side, -1, 0], [at, at + side, 0, -1]];
+  for (const [x, y, dx, dy] of corners) {
+    for (let i = 0; i < count; i++) {
+      // Centre each dash in its unit so the gaps meet at the corners evenly.
+      const t0 = i * step + (step - dash) / 2;
+      g.moveTo(x + dx * t0, y + dy * t0).lineTo(x + dx * (t0 + dash), y + dy * (t0 + dash));
+    }
+  }
+}
+
 function mix(a: number, b: number, t: number): number {
   const ch = (s: number) => Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t) << s;
   return ch(16) | ch(8) | ch(0);
@@ -1323,9 +1340,10 @@ export class BoardView extends Container {
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
       else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.08 });
       if (this.guessOrigin?.cell === c) {
-        // Hugs the cell edge (inset by half the stroke so it stays inside the cell).
-        const w = Math.max(2, cs * 0.045);
-        v.highlight.rect(w / 2, w / 2, cs - w, cs - w).stroke({ width: w, color: this.guessOrigin.color, alpha: 0.9 });
+        // The running guess's first digit: a dashed square a little inside the cell (80% dash, flat ends).
+        const w = Math.max(1.5, cs * 0.032), inset = cs * 0.09, side = cs - inset * 2;
+        dashedSquare(v.highlight, inset, side, Math.max(4, side / 7));
+        v.highlight.stroke({ width: w, color: this.guessOrigin.color, alpha: 0.9, cap: 'butt' });
       }
       if (this.olderGuessOrigins.includes(c)) {
         // An earlier guess started here: a small, dimmer inset square.
