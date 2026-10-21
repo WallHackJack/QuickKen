@@ -1342,7 +1342,11 @@ export class BoardView extends Container {
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
-      else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: this.maybeTarget ? MAYBE : SELECT_RING, alpha: 0.1 });
+      else if (sameCage) {
+        // A firmer backing so the numbers stand out, then the mode tint (a deeper red in normal mode).
+        v.highlight.rect(0, 0, cs, cs).fill({ color: 0x0b0d22, alpha: 0.45 });
+        v.highlight.rect(0, 0, cs, cs).fill(this.maybeTarget ? { color: MAYBE, alpha: 0.1 } : { color: 0x9e1f30, alpha: 0.2 });
+      }
       if (this.guessOrigin?.cell === c) {
         // The running guess's first digit: a dashed square just inside the cell edge (80% dash, solid corners).
         const w = Math.max(1.5, cs * 0.032), inset = w / 2 + cs * 0.025, side = cs - inset * 2;
