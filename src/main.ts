@@ -45,8 +45,8 @@ let game: Game | null = null;
 let notesMode = false;
 /** The previous input put this digit in as the cell's first maybe (pressing it again makes it the number). */
 let firstMaybe: { cell: number; digit: number } | null = null;
-/** The cell a digit-pad sweep is filling, its maybes before the sweep, and whether a step is applied. */
-let sweepBase: { cell: number; notes: number; applied: boolean } | null = null;
+/** The cell a digit-pad sweep is filling (or clearing), its maybes before the sweep, and whether a step is applied. */
+let sweepBase: { cell: number; notes: number; applied: boolean; remove: boolean } | null = null;
 let startTime = performance.now();
 let solvedAt: number | null = null;
 
@@ -187,12 +187,15 @@ const handlers: HudHandlers = {
       notesMode = true;
       // A filled cell is cleared first; the swept maybes are added to any it had.
       if (game.values[c] !== EMPTY) apply(game.erase(c));
-      sweepBase = { cell: c, notes: game.notes[c], applied: false };
+      // Starting on a digit the cell already has as a maybe: the sweep removes maybes instead.
+      const remove = (game.notes[c] & (1 << digits[0])) !== 0;
+      sweepBase = { cell: c, notes: game.notes[c], applied: false, remove };
     } else if (sweepBase.applied) {
       // Each step replaces the last, so the whole sweep stays one undo step.
       game.undo();
     }
-    const mask = digits.reduce((m, d) => m | (1 << d), sweepBase.notes);
+    const bits = digits.reduce((m, d) => m | (1 << d), 0);
+    const mask = sweepBase.remove ? sweepBase.notes & ~bits : sweepBase.notes | bits;
     const r = game.copyNotes([sweepBase.cell], mask);
     apply(r);
     // Only a step that changed something is in the history (and safe to undo next time).
