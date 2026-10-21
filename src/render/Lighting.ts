@@ -15,8 +15,9 @@ import { RIPPLE_GLSL, type Ripples } from './Ripples';
 
 // ponytail: lights beyond these caps are skipped for that frame; raise with care, the shader loops over both.
 // Each light has LIGHT_SEGS fixed segment slots, so a pixel loops over at most MAX_SRC × LIGHT_SEGS
-// segments (phones drop the GPU context when a full-screen pass runs too long). Shapes with more
-// segments light from their bounding box.
+// segments (phones drop the GPU context when a full-screen pass runs too long). A shape with more
+// segments spills into the next slots (lit once, as one outline); with no slots left it lights from
+// its bounding box.
 const MAX_SRC = 10, LIGHT_SEGS = 6, MAX_SEG = MAX_SRC * LIGHT_SEGS;
 
 export interface LightSpec {
@@ -100,13 +101,13 @@ void main(void) {
   float stroke = smoothstep(0.12, 0.45, h);
 
   vec3 diff = vec3(0.0), spec = vec3(0.0), halo = vec3(0.0), air = vec3(0.0);
+  float best = 1e12;
+  vec2 q = p;
+  bool inside = false;
   for (int s = 0; s < ${MAX_SRC}; s++) {
     if (float(s) >= uCount) break;
     vec4 src = uSrc[s];   // rgb * level, radius
-    vec4 rg = uRange[s];  // segment count, unused, light height, halo width
-    float best = 1e12;
-    vec2 q = p;
-    bool inside = false;
+    vec4 rg = uRange[s];  // segment count, continues the previous slot's shape, light height, halo width
     // (WebGL only allows loop counters as array indices, so walk from 0 and skip earlier lights' segments.)
     for (int i = 0; i < ${LIGHT_SEGS}; i++) {
       if (float(i) >= rg.x) break;
@@ -119,6 +120,8 @@ void main(void) {
       // Crossing test: segments form closed loops, so this tells whether p is inside the outline.
       if ((sg.y > p.y) != (sg.w > p.y) && p.x < sg.x + (p.y - sg.y) * ab.x / ab.y) inside = !inside;
     }
+    // The shape goes on in the next slot: light it once, after all of its segments.
+    if (s + 1 < ${MAX_SRC} && float(s + 1) < uCount && uRange[s + 1].y > 0.5) continue;
     float r = src.w;
     // Smooth inverse-square falloff that ends cleanly instead of fogging the whole board. The light
     // shines outward from the outline: inside it, it's much weaker.
@@ -132,6 +135,9 @@ void main(void) {
     halo += src.rgb * exp(-best / (2.0 * rg.w * rg.w)) * (inside ? 0.3 : 1.0);
     // Light reaching the air here (for the fog).
     air += src.rgb * att;
+    best = 1e12;
+    q = p;
+    inside = false;
   }
 
   // Strokes are glossy: they reflect mostly the light's colour, not their own. The dark board only
@@ -150,9 +156,9 @@ void main(void) {
   finalColor = vec4(min(lit, vec3(1.0)), base.a);
 }`;
 
-/** A light's segments, or its bounding box when it has more than LIGHT_SEGS. */
-function fitSegments(segs: number[][]): number[][] {
-  if (segs.length <= LIGHT_SEGS) return segs;
+/** A light's segments, or its bounding box when they need more than `slots` slots. */
+function fitSegments(segs: number[][], slots: number): number[][] {
+  if (segs.length <= LIGHT_SEGS * slots) return segs;
   const xs = segs.flatMap((s) => [s[0], s[2]]), ys = segs.flatMap((s) => [s[1], s[3]]);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   return [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]];
@@ -226,14 +232,17 @@ export class Lighting {
         const col = s.colorAt?.() ?? s.color;
         const rgb = [(col >> 16) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
         const segs: number[][] = [];
-        for (const [x1, y1, x2, y2] of fitSegments(s.segmentsAt ? s.segmentsAt(t) : s.segments)) {
+        for (const [x1, y1, x2, y2] of fitSegments(s.segmentsAt ? s.segmentsAt(t) : s.segments, MAX_SRC - src)) {
           const a = this.space.toGlobal({ x: x1, y: y1 }), b = this.space.toGlobal({ x: x2, y: y2 });
-          uSeg.set([a.x, a.y, b.x, b.y], (src * LIGHT_SEGS + segs.length) * 4);
           segs.push([a.x, a.y, b.x, b.y]);
         }
-        uSrc.set([rgb[0] * level, rgb[1] * level, rgb[2] * level, s.radius], src * 4);
-        uRange.set([segs.length, 0, cs * 0.3, cs * 0.2], src * 4);
-        src++;
+        // LIGHT_SEGS per slot; a longer outline continues in the following slots.
+        for (let k = 0; k === 0 || k * LIGHT_SEGS < segs.length; k++, src++) {
+          const part = segs.slice(k * LIGHT_SEGS, (k + 1) * LIGHT_SEGS);
+          part.forEach((sg, i) => uSeg.set(sg, (src * LIGHT_SEGS + i) * 4));
+          uSrc.set([rgb[0] * level, rgb[1] * level, rgb[2] * level, s.radius], src * 4);
+          uRange.set([part.length, k > 0 ? 1 : 0, cs * 0.3, cs * 0.2], src * 4);
+        }
         lights.push({ segs, rgb, level });
       }
       return t < 1 && (s.alive?.() ?? true);
