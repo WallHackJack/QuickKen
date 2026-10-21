@@ -1798,12 +1798,14 @@ export class BoardView extends Container {
       if (!cv) continue;
       const k = r.out ? 1 - ease.outCubic(r.t) : ease.outCubic(r.t);
       if (k <= 0.01) continue;
-      // Grows outward from the cage edge: a thin dark rim outside a pale-gold line.
-      const line = w * (0.4 + 0.6 * k);
+      // Covers the cage's own wall (which sits just inside the edge) and reaches a little past the edge,
+      // with a thin dark rim outside it.
+      const wall = Math.max(1.5, cs * 0.03);
+      const inner = wall * k, outer = w * 0.45 * k;
       for (const loop of cv.loops) {
         const at = (d: number) => insetLoop(loop, -d / cs).flatMap(([x, y]) => [x * cs, y * cs]);
-        g.poly(at(line * 0.5), true).stroke({ width: line, color: mix(SELECT_RING, 0x4fb4ff, this.maybeMix), alpha: 0.95 * k, join: 'miter' });
-        g.poly(at(line + w * 0.25), true).stroke({ width: Math.max(1, w * 0.45), color: 0x05060f, alpha: 0.7 * k, join: 'miter' });
+        g.poly(at((outer - inner) / 2), true).stroke({ width: inner + outer, color: mix(SELECT_RING, 0x4fb4ff, this.maybeMix), alpha: k, join: 'miter' });
+        g.poly(at(outer + w * 0.2), true).stroke({ width: Math.max(1, w * 0.4), color: 0x05060f, alpha: 0.7 * k, join: 'miter' });
       }
     }
   }
