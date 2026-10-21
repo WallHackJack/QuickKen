@@ -27,11 +27,17 @@ export interface HudHandlers {
   optionsChanged(o: Options): void;
 }
 
-const OP_SETS: Record<string, { label: string; ops: { id: string; weight: number }[] }> = {
-  classic: { label: 'Classic (+ − × ÷)', ops: [{ id: 'add', weight: 4 }, { id: 'mul', weight: 3 }, { id: 'sub', weight: 3 }, { id: 'div', weight: 3 }] },
-  mixed: { label: 'Classic + new (max, min, range, mod)', ops: [{ id: 'add', weight: 4 }, { id: 'mul', weight: 3 }, { id: 'sub', weight: 2 }, { id: 'div', weight: 2 }, { id: 'max', weight: 1.5 }, { id: 'min', weight: 1.5 }, { id: 'range', weight: 1 }, { id: 'mod', weight: 1 }] },
-  wild: { label: 'New only (max, min, range, mod, +)', ops: [{ id: 'add', weight: 2 }, { id: 'max', weight: 2 }, { id: 'min', weight: 2 }, { id: 'range', weight: 1.5 }, { id: 'mod', weight: 1.5 }] },
-};
+/** The operators a new puzzle can use: the four basics show just their symbol, the rest name + symbol. */
+const OPS = [
+  { id: 'add', label: '+', weight: 4 },
+  { id: 'sub', label: '−', weight: 2 },
+  { id: 'mul', label: '×', weight: 3 },
+  { id: 'div', label: '÷', weight: 2 },
+  { id: 'max', label: 'Max ↑', weight: 1.5 },
+  { id: 'min', label: 'Min ↓', weight: 1.5 },
+  { id: 'range', label: 'Range Δ', weight: 1 },
+  { id: 'mod', label: 'Mod %', weight: 1 },
+];
 
 const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
@@ -264,35 +270,44 @@ export class Hud {
   private buildDialog(): HTMLDialogElement {
     const d = document.createElement('dialog');
     d.className = 'newgame';
-    // A row of buttons (radio inputs styled as a segmented control).
-    const choices = (name: string, items: [string, string][], picked: string, cls = '') =>
-      `<div class="segmented ${cls}">${items.map(([v, label]) => `<label><input type="radio" name="${name}" value="${v}" ${v === picked ? 'checked' : ''} /><span>${label}</span></label>`).join('')}</div>`;
+    // A row of buttons (radio or checkbox inputs styled as a segmented control).
+    const choices = (name: string, items: [string, string, string?][], picked: string[], cls = '', type = 'radio') =>
+      `<div class="segmented ${cls}">${items.map(([v, label, extra]) => `<label class="${extra ?? ''}"><input type="${type}" name="${name}" value="${v}" ${picked.includes(v) ? 'checked' : ''} /><span>${label}</span></label>`).join('')}</div>`;
     const presetNames: Record<string, string> = { standard: '1 – n', zeroBased: '0 – n', evens: 'Evens', odds: 'Odds', centered: 'Centered', primes: 'Primes', tens: 'Tens' };
     d.innerHTML = `
-      <h2>New puzzle</h2>
-      <h3>Size</h3>
-      ${choices('size', [4, 5, 6, 7, 8, 9].map((n) => [String(n), n === 6 ? `${n}×${n} ★` : `${n}×${n}`]), '6', 'sizes')}
-      <h3>Difficulty</h3>
-      ${choices('rating', ['Easy', 'Medium', 'Hard', 'Expert', 'Fiendish'].map((r) => [r, r]), 'Medium', 'wrap')}
-      <fieldset class="more">
-        <legend>More options</legend>
-        <h3>Digits</h3>
-        ${choices('preset', Object.keys(DIGIT_PRESETS).map((k) => [k, presetNames[k] ?? k]), 'standard', 'wrap')}
-        <h3>Operators</h3>
-        ${choices('ops', Object.entries(OP_SETS).map(([k, v]) => [k, v.label]), 'classic', 'stack')}
-        <label>Custom digits (overrides size and digits) <input name="custom" placeholder="e.g. 2, 3, 5, 8, 13" /></label>
-        <label>Seed <input name="seed" placeholder="blank = random" /></label>
-        <p class="note">The same seed always makes the same puzzle (daily challenges use the date).</p>
-      </fieldset>
-      <div class="row"><button data-k="daily">Today's daily</button><button data-k="cancel">Cancel</button><button data-k="go" class="on">Generate</button></div>`;
+      <div class="body">
+        <h2>New puzzle</h2>
+        <h3>Size</h3>
+        ${choices('size', [4, 5, 6, 7, 8, 9].map((n) => [String(n), n === 6 ? `${n}×${n} ★` : `${n}×${n}`]), ['6'], 'sizes')}
+        <h3>Difficulty</h3>
+        ${choices('rating', ['Easy', 'Medium', 'Hard', 'Expert', 'Fiendish'].map((r) => [r, r, r === 'Fiendish' ? 'fiendish' : '']), ['Medium'], 'five')}
+        <fieldset class="more">
+          <legend>More options</legend>
+          <h3>Digits</h3>
+          ${choices('preset', [...Object.keys(DIGIT_PRESETS).map((k): [string, string] => [k, presetNames[k] ?? k]), ['custom', 'Custom']], ['standard'], 'four')}
+          <label class="custom-digits" hidden>Your digits (any count, sets the size) <input name="custom" placeholder="e.g. 2, 3, 5, 8, 13" /></label>
+          <h3>Operators</h3>
+          ${choices('ops', OPS.map((o) => [o.id, o.label]), ['add', 'sub', 'mul', 'div'], 'four', 'checkbox')}
+          <label>Seed <input name="seed" placeholder="blank = random" /></label>
+          <p class="note">The same seed always makes the same puzzle.</p>
+        </fieldset>
+      </div>
+      <div class="row foot"><button data-k="cancel">Cancel</button><button data-k="go" class="on">Generate</button></div>`;
     const val = (name: string) => ((d.querySelector(`[name=${name}]:checked`) ?? d.querySelector(`[name=${name}]`)) as HTMLInputElement).value.trim();
-    const submit = (seedOverride?: string) => {
+    // "Custom" in Digits opens the box for your own digits right under the row.
+    const customBox = d.querySelector<HTMLElement>('.custom-digits')!;
+    d.querySelectorAll<HTMLInputElement>('[name=preset]').forEach((r) => {
+      r.onchange = () => {
+        customBox.hidden = val('preset') !== 'custom';
+        if (!customBox.hidden) customBox.querySelector('input')!.focus();
+      };
+    });
+    const submit = () => {
       let digits: DigitSet;
       let size = Number(val('size'));
-      const custom = val('custom');
       try {
-        if (custom) {
-          const values = custom.split(/[\s,]+/).filter(Boolean).map(Number);
+        if (val('preset') === 'custom') {
+          const values = val('custom').split(/[\s,]+/).filter(Boolean).map(Number);
           digits = makeDigitSet(values);
           size = values.length;
         } else digits = DIGIT_PRESETS[val('preset')](size);
@@ -301,17 +316,21 @@ export class Hud {
         this.say(`Couldn't use those digits: ${e instanceof Error ? e.message : e}`, 'error');
         return;
       }
-      const rating = val('rating') as Rating;
+      const picked = [...d.querySelectorAll<HTMLInputElement>('[name=ops]:checked')].map((b) => b.value);
+      const operators = OPS.filter((o) => picked.includes(o.id)).map(({ id, weight }) => ({ id, weight }));
+      if (!operators.length) {
+        this.say('Pick at least one operator.', 'error');
+        return;
+      }
       this.h.newGame({
-        size, digits, operators: OP_SETS[val('ops')].ops,
-        seed: seedOverride ?? (val('seed') || Math.random().toString(36).slice(2)),
-        ratings: [rating],
+        size, digits, operators,
+        seed: val('seed') || Math.random().toString(36).slice(2),
+        ratings: [val('rating') as Rating],
       });
       d.close();
     };
     d.querySelector<HTMLButtonElement>('[data-k=go]')!.onclick = () => submit();
     d.querySelector<HTMLButtonElement>('[data-k=cancel]')!.onclick = () => d.close();
-    d.querySelector<HTMLButtonElement>('[data-k=daily]')!.onclick = () => submit(`daily-${new Date().toISOString().slice(0, 10)}`);
     return d;
   }
 

@@ -183,13 +183,19 @@ dialog.options .sub.off .toggle { cursor: default; }
 body.desk-input .pad button .key { opacity: 0.45; }
 
 /* New puzzle: size and difficulty as button rows; everything else in a framed "More options" box. */
-dialog.newgame { width: min(460px, calc(100vw - 32px)); }
+dialog.newgame { width: min(540px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); }
+/* The options scroll; Cancel / Generate stay put underneath. */
+dialog.newgame[open] { display: flex; flex-direction: column; }
+dialog.newgame .body { overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
+dialog.newgame .foot { flex: none; margin-top: 12px; }
+dialog.newgame .segmented.five { grid-template-columns: repeat(5, 1fr); }
+dialog.newgame .segmented.four { grid-template-columns: repeat(4, 1fr); }
+dialog.newgame .segmented .fiendish span { color: #ff6b7d; }
+dialog.newgame .segmented .fiendish input:checked + span { color: #ff6b7d; border-color: #ff6b7d; background: rgba(255, 77, 109, 0.18); }
+dialog.newgame .custom-digits { margin-top: 8px; }
 dialog.newgame h3 { margin: 14px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 dialog.newgame h2 + h3 { margin-top: 0; }
 dialog.newgame .segmented.sizes { grid-template-columns: repeat(6, 1fr); }
-dialog.newgame .segmented.wrap { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
-dialog.newgame .segmented.stack { grid-template-columns: 1fr; }
-dialog.newgame .segmented.stack span { text-align: left; padding: 9px 12px; font-weight: 600; }
 dialog.newgame .segmented span { font-size: 14px; }
 dialog.newgame .more { margin: 16px 0 4px; padding: 4px 12px 8px; border: 1px solid var(--line); border-radius: 12px; }
 dialog.newgame .more legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
