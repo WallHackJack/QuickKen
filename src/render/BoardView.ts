@@ -60,8 +60,8 @@ const CLAUDE_LIGHT = 0xffd9b8;
 const HIDDEN = 0xffc94f;
 /** A leftover that pins a single cell's digit (released, it's entered). */
 const CONFIRM = 0x8cff6b;
-/** The selected cell's cage ring: warm pale gold, unlike any cage or mode colour. */
-const SELECT_RING = 0xffe7a8;
+/** The selected cell's cage ring: blue in normal mode (it turns maybe-orange in maybe mode). */
+const SELECT_RING = 0x4fb4ff;
 // Errors: clashes, wrong cages, chains broken by a mistake.
 const ERROR = 0xff4d6d;
 
@@ -134,7 +134,8 @@ interface DragState {
 
 // One cage palette for now; `glow` lerps towards the bright pair during completion flashes,
 // and maybe mode shifts fill/edge towards violet.
-const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe6ecff, inner: 0xffffff, fillMaybe: 0x141a3c, edgeMaybe: 0xff9a4d };
+// Cage walls are map styling: the same in both modes (only the selected cage's ring shows the mode).
+const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0xa98cff, edgeGlow: 0xe6ecff, inner: 0xffffff };
 /** Label ink of a completed cage (its digits get a lighter green lean). */
 const COMPLETE_INK = 0xc8ffb8;
 
@@ -285,12 +286,10 @@ export class CageView extends Container {
   labelText: Text;
   /** What the cage's digits actually come to, top-right of its bottom-right cell while it is wrong. */
   resultText: Text;
-  /** 0 = normal palette, 1 = maybe-mode palette (animated by BoardView). */
-  mode = 0;
   /** Full and wrong (red outline, darker fill, red label) or full and right (subtle green border). */
   state: 'open' | 'ok' | 'wrong' = 'open';
   /** Resting colours: × and ÷ cages sit cooler than + and − ones so they read apart, in maybe mode too. */
-  private readonly base: { fill: number; edge: number; fillMaybe: number; edgeMaybe: number };
+  private readonly base: { fill: number; edge: number };
   readonly center: { x: number; y: number };
   readonly loops: [number, number][][];
   private readonly stroke: number;
@@ -302,8 +301,8 @@ export class CageView extends Container {
     this.loops = cageLoops(cage.cells, n);
     this.stroke = Math.max(1.5, cs * 0.03);
     this.base = cage.op === 'mul' || cage.op === 'div'
-      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x0c2640, edgeMaybe: 0xe8b04a }
-      : { fill: CAGE.fill, edge: CAGE.edge, fillMaybe: CAGE.fillMaybe, edgeMaybe: CAGE.edgeMaybe };
+      ? { fill: 0x18163e, edge: 0xdc8ce0 }
+      : { fill: CAGE.fill, edge: CAGE.edge };
     const cx = cage.cells.reduce((s, c) => s + (c % n) + 0.5, 0) / cage.cells.length;
     const cy = cage.cells.reduce((s, c) => s + Math.floor(c / n) + 0.5, 0) / cage.cells.length;
     this.center = { x: cx * cs, y: cy * cs };
@@ -353,8 +352,8 @@ export class CageView extends Container {
     for (const loop of this.loops) {
       // Inset by half the stroke so neighbouring cages' outlines meet flush, with no gap.
       const pts = insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]);
-      let fill = mix(mix(this.base.fill, this.base.fillMaybe, this.mode), CAGE.fillGlow, glow);
-      let edge = mix(mix(this.base.edge, this.base.edgeMaybe, this.mode), CAGE.edgeGlow, glow);
+      let fill = mix(this.base.fill, CAGE.fillGlow, glow);
+      let edge = mix(this.base.edge, CAGE.edgeGlow, glow);
       if (this.state === 'wrong') {
         fill = mix(fill, 0x12040a, 0.6);
         edge = mix(ERROR, edge, glow);
@@ -1206,12 +1205,11 @@ export class BoardView extends Container {
     this.hitArea = new Rectangle(0, 0, size, size);
 
     this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.72 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
-    this.frame.tint = mix(0xffffff, 0xffd2a8, this.maybeMix);
+    this.frame.tint = 0xffffff;
     this.addChild(this.frame);
 
     this.cageViews = game.puzzle.cages.map((_, ci) => {
       const cv = new CageView(ci, game, cs);
-      cv.mode = this.maybeMix;
       cv.drawShape(0);
       return cv;
     });
@@ -1790,7 +1788,7 @@ export class BoardView extends Container {
     if (this.selLight) this.selLight.gone = now;
     const life = { born: now, gone: 0 };
     this.selLight = life;
-    const color = mix(SELECT_RING, 0x4fb4ff, this.maybeTarget);
+    const color = mix(SELECT_RING, MAYBE, this.maybeTarget);
     this.lighting?.add({
       segments: this.loopSegments(cv.loops, -this.cs * 0.06), color, radius: this.cs * 0.22,
       level: () => {
@@ -1826,7 +1824,7 @@ export class BoardView extends Container {
       const inner = wall * k, outer = w * 0.45 * k;
       for (const loop of cv.loops) {
         const at = (d: number) => insetLoop(loop, -d / cs).flatMap(([x, y]) => [x * cs, y * cs]);
-        g.poly(at((outer - inner) / 2), true).stroke({ width: inner + outer, color: mix(SELECT_RING, 0x4fb4ff, this.maybeMix), alpha: k, join: 'miter' });
+        g.poly(at((outer - inner) / 2), true).stroke({ width: inner + outer, color: mix(SELECT_RING, MAYBE, this.maybeMix), alpha: k, join: 'miter' });
         g.poly(at(outer + w * 0.2), true).stroke({ width: Math.max(1, w * 0.4), color: 0x05060f, alpha: 0.7 * k, join: 'miter' });
       }
     }
@@ -1838,14 +1836,8 @@ export class BoardView extends Container {
     this.lighting?.update(dt * 1000);
     if (this.maybeMix !== this.maybeTarget) {
       const step = dt * 6;
+      // Eases the selection ring between blue and orange; cage walls don't follow the mode.
       this.maybeMix = Math.abs(this.maybeTarget - this.maybeMix) <= step ? this.maybeTarget : this.maybeMix + Math.sign(this.maybeTarget - this.maybeMix) * step;
-      for (const cv of this.cageViews) {
-        if (cv.destroyed) continue;
-        cv.mode = this.maybeMix;
-        cv.drawShape(0);
-      }
-      if (!this.frame.destroyed) this.frame.tint = mix(0xffffff, 0xffd2a8, this.maybeMix);
-      // (The background stays blue in maybe mode; only the lines and maybes turn orange.)
     }
     const d = this.drag;
     if (d?.active && d.copying) {
