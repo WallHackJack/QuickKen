@@ -133,8 +133,13 @@ interface DragState {
   held?: boolean;
   /** Growing a locked selection: how many cells it had when this drag started. */
   growFrom?: number;
+  /** Where the finger last settled, and how long (ms) it has stayed there. */
+  anchor?: { x: number; y: number };
+  stillMs?: number;
   /** The selection stays on screen after release (no drop action). */
   locked?: boolean;
+  /** Locked by holding still (its flash has played). */
+  heldLock?: boolean;
 }
 
 
@@ -438,11 +443,13 @@ export class BoardView extends Container {
   /** The pill's operation when the player tapped it to switch (else it follows the start cell's cage). */
   private sumOp: '+' | '×' | null = null;
   /** A pill being dragged (or tapped) in a locked selection. */
-  private pillDrag: { pill: Container; main: boolean; dx: number; dy: number; start: { x: number; y: number }; moved: boolean } | null = null;
+  private pillDrag: { pill: Container; main: boolean; dx: number; dy: number; start: { x: number; y: number }; at: { x: number; y: number }; moved: boolean } | null = null;
   /** Where the player put pills (by label key); otherwise they sit beside their cells. */
   private pillSpots = new Map<string, { x: number; y: number }>();
   /** A drag selection kept after release (it had a total or leftover): stays drawn until the next tap on the board. */
   private lockedSel: { path: number[] } | null = null;
+  /** The shrinking hold-to-lock ring around the finger, and the pill's dashed reach line. */
+  private dragHold = new Graphics();
   /** Glow along the drag outline: 0..1 base level, plus a flash when the selection locks. */
   private dragGlow = { level: 0, flash: 0 };
   /** Selected-cage effects fade out while a drag is being made (or a locked selection shows). */
@@ -481,8 +488,10 @@ export class BoardView extends Container {
       if (pd) {
         const q = e.getLocalPosition(this);
         if (Math.hypot(q.x - pd.start.x, q.y - pd.start.y) > this.cs * 0.1) pd.moved = true;
-        // The main pill stays put (a tap switches + and ×); leftover pills follow the finger.
+        // Leftover pills follow the finger; from the main pill a dashed line reaches for a cell to add.
+        pd.at = { x: q.x, y: q.y };
         if (!pd.main) pd.pill.position.set(q.x + pd.dx, q.y + pd.dy);
+        else this.drawReach(pd);
         return;
       }
       const d = this.drag;
@@ -494,6 +503,11 @@ export class BoardView extends Container {
         this.dragOver(d.lastPos.x + ((p.x - d.lastPos.x) * i) / steps, d.lastPos.y + ((p.y - d.lastPos.y) * i) / steps);
       }
       d.lastPos = p;
+      // Moving (more than a nudge) restarts the hold-to-lock.
+      if (d.anchor && Math.hypot(p.x - d.anchor.x, p.y - d.anchor.y) > this.cs * 0.12) {
+        d.anchor = { x: p.x, y: p.y };
+        d.stillMs = 0;
+      }
     });
     const end = () => (this.pillDrag ? this.endPillDrag() : this.endDrag());
     this.on('pointerup', end);
@@ -525,6 +539,8 @@ export class BoardView extends Container {
       // Dragging away is not a long-press.
       this.cancelHold();
       this.startDragGlow();
+      d.anchor = { ...d.lastPos };
+      d.stillMs = 0;
       this.sumOp = null;
       this.pillSpots.clear();
       d.blueprint = start.blueprint;
@@ -533,17 +549,6 @@ export class BoardView extends Container {
     }
     if (!d.path.includes(cell)) {
       d.path.push(cell);
-      // Once the selection spans cages and leaves its row/column, it's about whole cages.
-      const n = this.game.n, p0 = d.path[0], cageOf = this.game.topo.cageOf;
-      const inLine = d.path.every((c) => Math.floor(c / n) === Math.floor(p0 / n)) || d.path.every((c) => c % n === p0 % n);
-      if (!inLine && d.path.some((c) => cageOf[c] !== cageOf[p0])) {
-        const before = d.path.length;
-        // Every cage touched so far is taken whole (the first time this kicks in, the earlier ones too).
-        // Only through empty or maybe cells: a cell with a digit stays just itself.
-        for (const ci of new Set(d.path.filter((c) => this.game.values[c] === EMPTY).map((c) => cageOf[c]))) for (const c of this.game.puzzle.cages[ci].cells) if (!d.path.includes(c)) d.path.push(c);
-        // A cage taken whole: a small flash around the selection.
-        if (d.path.length > before) this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.4);
-      }
       this.drawDragPreview();
     }
   }
@@ -635,6 +640,7 @@ export class BoardView extends Container {
     // A leftover that pins one cell's digit is green: releasing enters it.
     if (this.ghost) this.drawHidden(g, this.ghost.cells, confirm ? CONFIRM : HIDDEN);
     this.setGhostLabels(this.ghost);
+    this.refresh();
   }
 
   /**
@@ -817,10 +823,8 @@ export class BoardView extends Container {
       }
       // Locked in (or grown): keep the outline, pills and leftover until the next tap on the board.
       this.lockedSel = { path: [...d.path] };
-      // The big flash, with a spark burst where the finger let go.
-      this.dragGlow.flash = 1.1;
-      const cs = this.cs;
-      this.particles.burst(d.lastPos.x, d.lastPos.y, { count: 16, colors: [0xdfe8ff, 0xffffff], speed: [cs * 0.8, cs * 2.2], life: [0.2, 0.4], size: [cs * 0.03, cs * 0.08], drag: 5 });
+      // The big flash, with sparks where the finger let go (unless holding still already locked it).
+      if (!d.heldLock) this.lockFlash(d.lastPos);
       this.drawLocked();
       this.refresh();
       this.onSelectionChange?.([...d.path], prev);
@@ -1353,7 +1357,8 @@ export class BoardView extends Container {
     this.pillDrag = null;
     this.pillSpots.clear();
     this.dragGlow = { level: 0, flash: 0 };
-    this.addChild(this.selLayer, this.dragLayer, this.ghostLabels, this.particles.container, this.sumPill);
+    this.dragHold = new Graphics();
+    this.addChild(this.selLayer, this.dragLayer, this.dragHold, this.ghostLabels, this.particles.container, this.sumPill);
 
     this.refresh();
   }
@@ -1394,6 +1399,8 @@ export class BoardView extends Container {
       });
     }
     const sel = this.selected;
+    const selCells = new Set(this.drag?.active ? this.drag.path : (this.lockedSel?.path ?? []));
+    const leftCells = new Set(this.ghost && selCells.size ? this.ghost.cells : []);
     // Digits a chain hasn't revealed yet don't count for the same-digit highlight (it would give them away).
     const selVal = hidden.has(sel) ? EMPTY : g.values[sel];
     // The last move glows: every digit and maybe it put in, and (fainter) the maybes left in cells it
@@ -1446,6 +1453,11 @@ export class BoardView extends Container {
       // The selected cell's cage gets the soft highlight (not its row and column).
       const sameCage = g.topo.cageOf[c] === g.topo.cageOf[sel];
       v.highlight.clear();
+      if (selCells.has(c) || leftCells.has(c)) {
+        // Under a drag selection (white) or its leftover (amber): less see-through, lightly tinted.
+        v.highlight.rect(0, 0, cs, cs).fill({ color: 0x0b0d22, alpha: 0.5 });
+        v.highlight.rect(0, 0, cs, cs).fill({ color: selCells.has(c) ? NEUTRAL : HIDDEN, alpha: 0.1 });
+      }
       if (c === this.dragSource) v.highlight.rect(0, 0, cs, cs).fill({ color: MAYBE, alpha: 0.3 });
       // Selecting a cell Check marked wrong: pink, so it still reads as the red cell.
       else if (c === sel && (this.drag?.active || this.lockedSel)) { /* the drag selection shows instead */ }
@@ -1965,7 +1977,7 @@ export class BoardView extends Container {
     this.lighting?.add({
       segments: [],
       segmentsAt: () => this.loopSegments(cageLoops(path(), n), -this.cs * 0.04),
-      color: 0xdfe8ff, radius: this.cs * 0.3,
+      color: 0xdfe8ff, radius: this.cs * 0.3, mask: true,
       level: () => glow.level * 0.24 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
@@ -1973,7 +1985,7 @@ export class BoardView extends Container {
     this.lighting?.add({
       segments: [],
       segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), -this.cs * 0.04) : []),
-      color: HIDDEN, radius: this.cs * 0.26,
+      color: HIDDEN, radius: this.cs * 0.26, mask: true,
       level: () => (this.ghost ? glow.level * 0.15 : 0),
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
@@ -2015,6 +2027,7 @@ export class BoardView extends Container {
     this.ghost = this.showRegionSum(path);
     if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
     this.setGhostLabels(this.ghost);
+    this.refresh();
   }
 
   /** A pill was pressed (locked selection only): drag it, or tap the main one to switch + and ×. */
@@ -2022,13 +2035,27 @@ export class BoardView extends Container {
     if (!this.lockedSel) return;
     e.stopPropagation();
     const q = e.getLocalPosition(this);
-    this.pillDrag = { pill, main, dx: pill.x - q.x, dy: pill.y - q.y, start: { x: q.x, y: q.y }, moved: false };
+    this.pillDrag = { pill, main, dx: pill.x - q.x, dy: pill.y - q.y, start: { x: q.x, y: q.y }, at: { x: q.x, y: q.y }, moved: false };
   }
 
   private endPillDrag(): void {
     const pd = this.pillDrag;
     this.pillDrag = null;
     if (!pd) return;
+    if (!this.dragHold.destroyed) this.dragHold.clear();
+    if (pd.main && pd.moved && this.lockedSel) {
+      // Let go over a cell outside the selection: it joins (an undo step).
+      const cell = this.cellAt(pd.at.x, pd.at.y);
+      if (cell < 0 || this.lockedSel.path.includes(cell)) return;
+      const prev = [...this.lockedSel.path];
+      this.lockedSel = { path: [...prev, cell] };
+      this.ghostKey = '';
+      this.drawLocked();
+      this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.5);
+      this.ripple([[[cell % this.game.n, Math.floor(cell / this.game.n)], [cell % this.game.n + 1, Math.floor(cell / this.game.n)], [cell % this.game.n + 1, Math.floor(cell / this.game.n) + 1], [cell % this.game.n, Math.floor(cell / this.game.n) + 1]]], 0.25, undefined, NEUTRAL);
+      this.onSelectionChange?.([...this.lockedSel.path], prev);
+      return;
+    }
     if (!pd.moved || pd.main) {
       if (!pd.main || !this.lockedSel) return;
       // Tap on the main pill: switch between adding and multiplying.
@@ -2049,6 +2076,27 @@ export class BoardView extends Container {
     this.pillSpots.set(pd.main ? 'main' : (pd.pill.label ?? ''), { x: pd.pill.x, y: pd.pill.y });
     const gp = this.toGlobal(pd.pill.position);
     this.bg.ripples.add([[gp.x, gp.y, gp.x, gp.y]], 0.3);
+  }
+
+  /** The dashed line from the main pill to the finger, and the cell it would add. */
+  private drawReach(pd: NonNullable<BoardView['pillDrag']>): void {
+    const g = this.dragHold;
+    if (g.destroyed || !this.lockedSel) return;
+    g.clear();
+    if (!pd.moved) return;
+    const cs = this.cs, n = this.game.n;
+    const from = pd.pill.position, to = pd.at;
+    const len = Math.hypot(to.x - from.x, to.y - from.y), dash = cs * 0.12;
+    for (let s = 0; s < len; s += dash * 2) {
+      const a = s / len, b = Math.min(len, s + dash) / len;
+      g.moveTo(from.x + (to.x - from.x) * a, from.y + (to.y - from.y) * a).lineTo(from.x + (to.x - from.x) * b, from.y + (to.y - from.y) * b);
+    }
+    g.stroke({ width: Math.max(2, cs * 0.045), color: NEUTRAL, alpha: 0.9, cap: 'round' });
+    const cell = this.cellAt(to.x, to.y);
+    if (cell >= 0 && !this.lockedSel.path.includes(cell)) {
+      const w = Math.max(2, cs * 0.05);
+      g.rect((cell % n) * cs + w / 2, Math.floor(cell / n) * cs + w / 2, cs - w, cs - w).stroke({ width: w, color: NEUTRAL, alpha: 0.8 });
+    }
   }
 
   /** Which way a selection's pill combines: the player's switch, else the start cell's cage operator. */
@@ -2082,6 +2130,28 @@ export class BoardView extends Container {
     const want = d?.active && !d.locked ? 1 : this.lockedSel || d?.locked ? 0.7 : 0;
     glow.level += Math.sign(want - glow.level) * Math.min(Math.abs(want - glow.level), dtMs / 200);
     glow.flash *= Math.exp(-dtMs / 260);
+    // Holding still on a first selection: a ring shrinks onto the finger, then the selection locks.
+    const g = this.dragHold;
+    if (g.destroyed || this.pillDrag) return;
+    g.clear();
+    if (!d?.active || d.locked || d.growFrom !== undefined || d.stillMs === undefined || !d.anchor) return;
+    d.stillMs += dtMs;
+    const LOCK_MS = 800, SHOW_MS = 250;
+    if (d.stillMs < SHOW_MS) return;
+    const k = Math.min(1, (d.stillMs - SHOW_MS) / (LOCK_MS - SHOW_MS));
+    const cs = this.cs;
+    g.circle(d.anchor.x, d.anchor.y, cs * (1.1 - 0.85 * ease.outCubic(k))).stroke({ width: Math.max(2, cs * 0.05), color: 0xdfe8ff, alpha: 0.85 * k });
+    if (k < 1) return;
+    d.locked = d.heldLock = true;
+    g.clear();
+    this.lockFlash(d.anchor);
+  }
+
+  /** The lock-in flash: the selection's outline flares and sparks burst at `at`. */
+  private lockFlash(at: { x: number; y: number }): void {
+    const cs = this.cs;
+    this.dragGlow.flash = 1.1;
+    this.particles.burst(at.x, at.y, { count: 16, colors: [0xdfe8ff, 0xffffff], speed: [cs * 0.8, cs * 2.2], life: [0.2, 0.4], size: [cs * 0.03, cs * 0.08], drag: 5 });
   }
 
   update(dt: number): void {

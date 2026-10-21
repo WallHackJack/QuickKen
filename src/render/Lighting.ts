@@ -34,6 +34,8 @@ export interface LightSpec {
   segmentsAt?: (t: number) => number[][];
   /** For a light that lasts until something ends it (duration Infinity): false removes it. */
   alive?: () => boolean;
+  /** No light inside the outline (it shines outward only, leaving the area it surrounds clear). */
+  mask?: boolean;
 }
 
 interface Source extends LightSpec {
@@ -107,7 +109,7 @@ void main(void) {
   for (int s = 0; s < ${MAX_SRC}; s++) {
     if (float(s) >= uCount) break;
     vec4 src = uSrc[s];   // rgb * level, radius
-    vec4 rg = uRange[s];  // segment count, continues the previous slot's shape, light height, halo width
+    vec4 rg = uRange[s];  // segment count, flags (1 continues the previous slot's shape, 2 masks the inside), light height, halo width
     // (WebGL only allows loop counters as array indices, so walk from 0 and skip earlier lights' segments.)
     for (int i = 0; i < ${LIGHT_SEGS}; i++) {
       if (float(i) >= rg.x) break;
@@ -121,18 +123,19 @@ void main(void) {
       if ((sg.y > p.y) != (sg.w > p.y) && p.x < sg.x + (p.y - sg.y) * ab.x / ab.y) inside = !inside;
     }
     // The shape goes on in the next slot: light it once, after all of its segments.
-    if (s + 1 < ${MAX_SRC} && float(s + 1) < uCount && uRange[s + 1].y > 0.5) continue;
+    if (s + 1 < ${MAX_SRC} && float(s + 1) < uCount && mod(uRange[s + 1].y, 2.0) > 0.5) continue;
+    float inAtt = rg.y > 1.5 ? 0.0 : 0.35, inHalo = rg.y > 1.5 ? 0.0 : 0.3;
     float r = src.w;
     // Smooth inverse-square falloff that ends cleanly instead of fogging the whole board. The light
     // shines outward from the outline: inside it, it's much weaker.
     float att = 1.0 / (1.0 + best / (r * r));
-    att *= (1.0 - smoothstep(r * 2.0, r * 4.5, sqrt(best))) * (inside ? 0.35 : 1.0);
+    att *= (1.0 - smoothstep(r * 2.0, r * 4.5, sqrt(best))) * (inside ? inAtt : 1.0);
     // The light hangs just above the board; shade toward its nearest point.
     vec3 L = normalize(vec3(q - p, rg.z));
     diff += src.rgb * att * max(dot(N, L), 0.0);
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
     spec += src.rgb * att * pow(max(dot(N, H), 0.0), 16.0);
-    halo += src.rgb * exp(-best / (2.0 * rg.w * rg.w)) * (inside ? 0.3 : 1.0);
+    halo += src.rgb * exp(-best / (2.0 * rg.w * rg.w)) * (inside ? inHalo : 1.0);
     // Light reaching the air here (for the fog).
     air += src.rgb * att;
     best = 1e12;
@@ -241,7 +244,7 @@ export class Lighting {
           const part = segs.slice(k * LIGHT_SEGS, (k + 1) * LIGHT_SEGS);
           part.forEach((sg, i) => uSeg.set(sg, (src * LIGHT_SEGS + i) * 4));
           uSrc.set([rgb[0] * level, rgb[1] * level, rgb[2] * level, s.radius], src * 4);
-          uRange.set([part.length, k > 0 ? 1 : 0, cs * 0.3, cs * 0.2], src * 4);
+          uRange.set([part.length, (k > 0 ? 1 : 0) + (s.mask ? 2 : 0), cs * 0.3, cs * 0.2], src * 4);
         }
         lights.push({ segs, rgb, level });
       }
