@@ -69,6 +69,8 @@ const ERROR = 0xff4d6d;
 export interface HiddenCage {
   cells: number[];
   target: number;
+  /** How the cells combine to the target: added (+) or multiplied (×). */
+  op?: '+' | '×';
 }
 
 /**
@@ -589,7 +591,7 @@ export class BoardView extends Container {
    * have a known total, so the cells of those lines left out of the selection must add up to the
    * rest. The band with the fewest leftover cells wins; it must leave between 1 and n cells.
    */
-  private sumSelection(region: number[]): { total: number; showTotal: boolean; hidden: HiddenCage | null; lines: number; lineSum: number } | null {
+  private sumSelection(region: number[]): { total: number; showTotal: boolean; hidden: HiddenCage | null; lines: number; lineSum: number; op: '+' | '×' } | null {
     const { cages } = this.game.puzzle;
     const { cageOf } = this.game.topo;
     const set = new Set(region);
@@ -597,10 +599,14 @@ export class BoardView extends Container {
     if (region.length < 2) return null;
     // A single whole cage's total would just repeat its own label, but the rest of its line is news.
     const showTotal = !(ids.length < 2 && cages[ids[0]].cells.every((c) => set.has(c)));
-    const total = this.game.regionSum(region);
+    // A drag that starts in a × cage multiplies everything; any other drag adds.
+    const product = cages[cageOf[region[0]]].op === 'mul';
+    const op: '+' | '×' = product ? '×' : '+';
+    const total = this.game.regionTotal(region, product ? 'product' : 'sum');
     if (total === null) return null;
     const n = this.game.n;
-    const lineSum = this.game.puzzle.digits.values.reduce((a, b) => a + b, 0);
+    const values = this.game.puzzle.digits.values;
+    const lineSum = product ? values.reduce((a, b) => a * b, 1) : values.reduce((a, b) => a + b, 0);
     // The leftover follows the selection's shape: a wide selection completes its rows, a tall one its
     // columns; a square one takes whichever leaves fewer cells.
     const rows = new Set(region.map((c) => Math.floor(c / n))).size, cols = new Set(region.map((c) => c % n)).size;
@@ -611,11 +617,14 @@ export class BoardView extends Container {
       const lines = [...new Set(region.map((c) => (byRow ? Math.floor(c / n) : c % n)))];
       const cells = lines.flatMap((i) => Array.from({ length: n }, (_, j) => (byRow ? i * n + j : j * n + i))).filter((c) => !set.has(c));
       if (cells.length < 1 || (hidden && hidden.cells.length <= cells.length)) continue;
-      hidden = { cells: cells.sort((a, b) => a - b), target: +(lines.length * lineSum - total).toFixed(3) };
+      // Products: what the whole lines multiply to, divided by the selection (only when that's exact).
+      const target = product ? (total !== 0 ? lineSum ** lines.length / total : NaN) : lines.length * lineSum - total;
+      if (!Number.isFinite(target) || (product && Math.abs(target - Math.round(target)) > 1e-6)) continue;
+      hidden = { cells: cells.sort((a, b) => a - b), target: +target.toFixed(3), op };
       lineCount = lines.length;
     }
     if (!showTotal && !hidden) return null;
-    return { total, showTotal, hidden, lines: lineCount, lineSum };
+    return { total, showTotal, hidden, lines: lineCount, lineSum, op };
   }
 
   /**
@@ -631,11 +640,11 @@ export class BoardView extends Container {
     }
     const total = info.total;
     const label = pill.getChildAt(1) as Text;
-    label.text = `${+total.toFixed(3)}+`;
+    label.text = `${+total.toFixed(3)}${info.op}`;
     // With a leftover, the total of the whole rows/columns it comes from (e.g. 63 for three rows of 21).
     const sub = pill.getChildAt(2) as Text;
     sub.visible = !!info.hidden;
-    if (info.hidden) sub.text = `${+(info.lineSum * info.lines).toFixed(3)}`;
+    if (info.hidden) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
     const bg = pill.getChildAt(0) as Graphics;
     const cs = this.cs;
     const subH = sub.visible ? sub.height * 0.85 : 0;
@@ -719,7 +728,7 @@ export class BoardView extends Container {
     const edge = this.confirmDigit(h) >= 0 ? CONFIRM : HIDDEN;
     for (const piece of this.pieces(h.cells)) {
       const pill = new Container();
-      const text = new Text({ text: single ? `${h.target}` : `${h.target}+`, style: { fontFamily: FONT, fontSize: Math.max(11, cs * 0.24), fill: 0xffffff, fontWeight: '800' } });
+      const text = new Text({ text: single ? `${h.target}` : `${h.target}${h.op ?? '+'}`, style: { fontFamily: FONT, fontSize: Math.max(11, cs * 0.24), fill: 0xffffff, fontWeight: '800' } });
       text.anchor.set(0.5);
       const w = Math.min(cs * 0.9, text.width + cs * 0.22), hgt = text.height + cs * 0.08;
       const bg = new Graphics().roundRect(-w / 2, -hgt / 2, w, hgt, hgt / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: edge, alpha: 0.95 });

@@ -304,6 +304,14 @@ describe('Game', () => {
     expect(g.partSum(ci, cage.cells)).toBeNull();
   });
 
+  it('a region product multiplies whole × cages by their targets', () => {
+    const g = new Game(withGivens);
+    const muls = withGivens.cages.filter((c) => c.op === 'mul').slice(0, 2);
+    if (muls.length < 2) return;
+    const region = muls.flatMap((c) => c.cells);
+    expect(g.regionTotal(region, 'product')).toBe(muls[0].target * muls[1].target);
+  });
+
   it('a settled sum is always the true sum (each cage holding its solution digits as maybes)', () => {
     const g = new Game(puzzle);
     const vals = puzzle.digits.values;

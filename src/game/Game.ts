@@ -498,13 +498,22 @@ export class Game {
    * E.g. a 3-cell 10× holding 1/2/5 maybes in each cell must be one each of 1, 2 and 5: always 8.
    */
   partSum(ci: number, part: number[]): number | null {
+    return this.partTotal(ci, part, 'sum');
+  }
+
+  /** As partSum, but the total is a sum or (for × drags) a product of the part's digits. */
+  partTotal(ci: number, part: number[], mode: 'sum' | 'product'): number | null {
     const cage = this.puzzle.cages[ci];
     const vals = this.puzzle.digits.values;
+    const combine = mode === 'sum' ? (a: number, b: number) => a + b : (a: number, b: number) => a * b;
+    const unit = mode === 'sum' ? 0 : 1;
     const filled = (cells: number[]) => cells.every((c) => this.values[c] !== EMPTY);
-    const sumOf = (cells: number[]) => cells.reduce((t, c) => t + vals[this.values[c]], 0);
-    if (filled(part)) return sumOf(part);
+    const totalOf = (cells: number[]) => cells.reduce((t, c) => combine(t, vals[this.values[c]]), unit);
+    if (filled(part)) return totalOf(part);
     const rest = cage.cells.filter((c) => !part.includes(c));
-    if (cage.op === 'add' && filled(rest)) return cage.target - sumOf(rest);
+    // Plain arithmetic: the part of a cage whose operator matches the drag, with the rest filled.
+    if (mode === 'sum' && cage.op === 'add' && filled(rest)) return cage.target - totalOf(rest);
+    if (mode === 'product' && cage.op === 'mul' && filled(rest) && totalOf(rest) !== 0) return cage.target / totalOf(rest);
     if (cage.cells.some((c) => this.values[c] === EMPTY && !this.notes[c])) return null;
     const op = getOperator(cage.op);
     const options = cage.cells.map((c) => {
@@ -527,7 +536,7 @@ export class Game {
       if (i === cage.cells.length) {
         const r = op.evaluate(pick.map((d) => vals[d]));
         if (r === null || !approxEq(r, cage.target)) return;
-        const sum = pick.reduce((t, d, k) => (inPart[k] ? t + vals[d] : t), 0);
+        const sum = pick.reduce((t, d, k) => (inPart[k] ? combine(t, vals[d]) : t), unit);
         if (total === null) total = sum;
         else if (!approxEq(total, sum)) settled = false;
         pick.forEach((d, k) => (used[k] |= bit(d)));
@@ -551,16 +560,25 @@ export class Game {
    * simply its target.
    */
   regionSum(region: number[]): number | null {
+    return this.regionTotal(region, 'sum');
+  }
+
+  /**
+   * Total of a selection, cage by cage, as a sum or a product (see partTotal). A whole cage whose
+   * operator matches (+ for sums, × for products) is simply its target.
+   */
+  regionTotal(region: number[], mode: 'sum' | 'product'): number | null {
     const { cages } = this.puzzle;
     const inRegion = new Set(region);
-    let total = 0;
+    let total = mode === 'sum' ? 0 : 1;
     for (const ci of new Set(region.map((c) => this.topo.cageOf[c]))) {
       const cage = cages[ci];
       const part = cage.cells.filter((c) => inRegion.has(c));
       const whole = part.length === cage.cells.length;
-      const s = whole && (cage.op === 'add' || cage.op === 'given') ? cage.target : this.partSum(ci, part);
+      const own = cage.op === 'given' || cage.op === (mode === 'sum' ? 'add' : 'mul');
+      const s = whole && own ? cage.target : this.partTotal(ci, part, mode);
       if (s === null) return null;
-      total += s;
+      total = mode === 'sum' ? total + s : total * s;
     }
     return total;
   }
