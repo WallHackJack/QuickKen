@@ -117,7 +117,8 @@ describe('Game', () => {
     g.keepGuess();
     expect(g.layer).toBe(0);
     expect(g.layers[1]).toBe(0);
-    g.undo();
+    g.undo(); // un-confirms the guess
+    g.undo(); // then undoes the entry
     expect(g.values[1]).toBe(EMPTY);
   });
 
@@ -362,6 +363,27 @@ describe('Game', () => {
     g.undo();
     g.redo();
     expect(g.lastPlayed()?.waves).toEqual(r.waves);
+  });
+
+  it('confirming a guess can be undone and redone', () => {
+    const g = new Game(puzzle);
+    g.settings.autoFill = false;
+    g.startGuess();
+    g.setValue(7, sol[7]);
+    g.keepGuess();
+    expect(g.layer).toBe(0);
+    expect(g.layers[7]).toBe(0);
+    g.undo(); // the guess is back, with its entry still in it
+    expect(g.layer).toBe(1);
+    expect(g.layers[7]).toBe(1);
+    expect(g.guessOrigin()).toEqual({ cell: 7, digit: sol[7] });
+    g.undo(); // and its entry undoes inside the guess
+    expect(g.values[7]).toBe(EMPTY);
+    g.redo();
+    g.redo(); // confirmed again
+    expect(g.layer).toBe(0);
+    expect(g.layers[7]).toBe(0);
+    expect(g.values[7]).toBe(sol[7]);
   });
 
   it('a guess remembers the move it started from', () => {

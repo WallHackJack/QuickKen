@@ -79,9 +79,11 @@ const handlers: HudHandlers = {
     const cells = game.peekUndo();
     const before = stopped ? null : board.snapshotCells([...cells, ...[...board.disproven.keys()].filter((c) => !cells.includes(c))]);
     board.disproven.clear();
+    const unconfirm = game.history.at(-1)?.kind === 'guess-keep';
     after(game.undo());
     if (before) board.rewindMove(before);
     if (stopped) hud.say('Chain stopped and undone.');
+    else if (unconfirm) hud.say(`Guess ${game.layer} is back (no longer confirmed).`, 'hint');
   },
   redo: () => {
     if (!game?.canRedo) return;

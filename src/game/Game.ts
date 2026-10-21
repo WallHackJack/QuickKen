@@ -23,11 +23,13 @@ interface Change {
 }
 
 interface Command {
-  kind: 'edit' | 'guess-start';
+  kind: 'edit' | 'guess-start' | 'guess-keep';
   layer: number;
   changes: Change[];
   /** How the move played (its chain waves), so redo can play it again. */
   fx?: Pick<ActionResult, 'waves' | 'eliminated' | 'broken'>;
+  /** guess-keep: the guess as it was before confirming (its part of the history and the cell layers). */
+  keep?: { at: number; tail: Command[]; layers: number[]; layer: number };
 }
 
 export interface ActionResult {
@@ -162,7 +164,7 @@ export class Game {
       const n = this.values.length;
       const ok = (cmds: unknown): cmds is Command[] =>
         Array.isArray(cmds) &&
-        cmds.every((c: Command) => (c.kind === 'edit' || c.kind === 'guess-start') && Array.isArray(c.changes) && c.changes.every((ch) => Number.isInteger(ch.cell) && ch.cell >= 0 && ch.cell < n && ch.before && ch.after));
+        cmds.every((c: Command) => (c.kind === 'edit' || c.kind === 'guess-start' || c.kind === 'guess-keep') && Array.isArray(c.changes) && c.changes.every((ch) => Number.isInteger(ch.cell) && ch.cell >= 0 && ch.cell < n && ch.before && ch.after));
       if (ok(history) && ok(redo)) {
         this.history = history;
         this.redoStack = redo;
@@ -644,6 +646,15 @@ export class Game {
       this.layer--;
       return [];
     }
+    if (cmd.kind === 'guess-keep' && cmd.keep) {
+      // Un-confirm: the guess comes back as it was (its moves, its colour, its start).
+      const k = cmd.keep;
+      this.history = this.history.slice(0, k.at).concat(structuredClone(k.tail));
+      const changed = k.layers.flatMap((l, c) => (this.layers[c] !== l ? [c] : []));
+      this.layers.set(k.layers);
+      this.layer = k.layer;
+      return changed;
+    }
     return this.revert(cmd);
   }
 
@@ -657,6 +668,11 @@ export class Game {
   redo(): number[] {
     const cmd = this.redoStack.pop();
     if (!cmd) return [];
+    if (cmd.kind === 'guess-keep') {
+      const changed = this.confirmGuess();
+      this.history.push(cmd);
+      return changed;
+    }
     this.history.push(cmd);
     if (cmd.kind === 'guess-start') {
       this.layer++;
@@ -695,9 +711,19 @@ export class Game {
   }
 
   /** Accept the current guess: its entries join the parent layer. */
+  /** Confirm the running guess: its entries become normal ones. One undo step (undo brings the guess back). */
   keepGuess(): number[] {
     if (this.layer === 0) return [];
     this.redoStack = [];
+    const idx = this.history.findLastIndex((c) => c.kind === 'guess-start' && c.layer === this.layer);
+    const keep = { at: Math.max(0, idx), tail: structuredClone(this.history.slice(Math.max(0, idx))), layers: Array.from(this.layers), layer: this.layer };
+    const changed = this.confirmGuess();
+    this.history.push({ kind: 'guess-keep', layer: this.layer, changes: [], keep });
+    return changed;
+  }
+
+  /** The work of confirming: drop the guess's start, retag its moves and cells to the layer below. */
+  private confirmGuess(): number[] {
     const from = this.layer;
     const idx = this.history.findLastIndex((c) => c.kind === 'guess-start' && c.layer === from);
     if (idx >= 0) this.history.splice(idx, 1);
