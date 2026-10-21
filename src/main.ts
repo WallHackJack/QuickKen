@@ -210,8 +210,19 @@ const handlers: HudHandlers = {
 const hud = new Hud(hudEl, stageEl, handlers);
 hud.setOptions(options);
 
+/** The board just became solved: stop the clock and confirm every running guess (a solved board is right). */
+function finishSolve(): void {
+  if (!game) return;
+  solvedAt = performance.now();
+  while (game.layer > 0) game.keepGuess();
+  board.refresh();
+  hud.say(`Solved in ${Math.round((solvedAt - startTime) / 1000)}s!`, 'win');
+}
+
 function sync(): void {
   if (!game) return;
+  // Solved some other way than apply (a redo, a drag drop): same finish.
+  if (!solvedAt && game.isSolved()) finishSolve();
   // Undo (or a stale save) can take a finished puzzle back to unfinished: unlock input and resume the
   // clock from where it stopped.
   if (solvedAt && !game.isSolved()) {
@@ -290,13 +301,8 @@ function apply(r: ActionResult): void {
   board.errorCells.clear();
   board.play(r);
   const chain = r.waves.length - 1;
-  if (game.isSolved()) {
-    solvedAt = performance.now();
-    // A solved board is right, so any running guesses are locked in: every number in one colour.
-    while (game.layer > 0) game.keepGuess();
-    board.refresh();
-    hud.say(`Solved in ${Math.round((solvedAt - startTime) / 1000)}s!`, 'win');
-  } else if (r.broken && r.broken.wave > 0) hud.say(`Chain broken at step ${r.broken.wave}: something doesn't fit. See the red cells.`, 'error');
+  if (game.isSolved()) finishSolve();
+  else if (r.broken && r.broken.wave > 0) hud.say(`Chain broken at step ${r.broken.wave}: something doesn't fit. See the red cells.`, 'error');
   else if (r.broken) hud.say("That doesn't fit, so nothing else fills. See the red cells.", 'error');
   else if (chain >= 2) hud.say(`Chain reaction ×${chain}!`);
   else hud.say('');
@@ -332,7 +338,11 @@ function startGame(res: GenResult, saved?: GameSnapshot): void {
     board.selected = saved.selected;
     notesMode = saved.notesMode;
     startTime = performance.now() - saved.elapsedMs;
-    if (saved.solved) solvedAt = performance.now();
+    if (saved.solved) {
+      solvedAt = performance.now();
+      // Saved before solving confirmed guesses: confirm them now.
+      while (game.layer > 0) game.keepGuess();
+    }
   }
   hud.setDigits(res.puzzle.digits.labels);
   const m = res.puzzle.meta;
