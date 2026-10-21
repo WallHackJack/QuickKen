@@ -544,6 +544,12 @@ export class BoardView extends Container {
     }
     if (!d.path.includes(cell)) {
       d.path.push(cell);
+      // Once the selection spans cages and leaves its row/column, it's about whole cages: take all of each one entered.
+      const n = this.game.n, p0 = d.path[0], cageOf = this.game.topo.cageOf;
+      const inLine = d.path.every((c) => Math.floor(c / n) === Math.floor(p0 / n)) || d.path.every((c) => c % n === p0 % n);
+      if (!inLine && d.path.some((c) => cageOf[c] !== cageOf[p0])) {
+        for (const c of this.game.puzzle.cages[cageOf[cell]].cells) if (!d.path.includes(c)) d.path.push(c);
+      }
       this.drawDragPreview();
     }
   }
@@ -1946,7 +1952,7 @@ export class BoardView extends Container {
       segments: [],
       segmentsAt: () => this.loopSegments(cageLoops(path(), n), -this.cs * 0.04),
       color: 0xdfe8ff, radius: this.cs * 0.3,
-      level: () => glow.level * 0.3 + glow.flash,
+      level: () => glow.level * 0.24 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
     // The leftover cells glow amber (green when they pin a digit).
@@ -1954,7 +1960,7 @@ export class BoardView extends Container {
       segments: [],
       segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), -this.cs * 0.04) : []),
       color: HIDDEN, radius: this.cs * 0.26,
-      level: () => (this.ghost ? glow.level * 0.3 : 0),
+      level: () => (this.ghost ? glow.level * 0.15 : 0),
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
   }
@@ -2012,8 +2018,15 @@ export class BoardView extends Container {
     if (!pd.moved || pd.main) {
       if (!pd.main || !this.lockedSel) return;
       // Tap on the main pill: switch between adding and multiplying.
+      // Only when the other way works out (gives a total or a leftover); otherwise a little shake.
       const now = this.sumSelectionOp(this.lockedSel.path);
       this.sumOp = now === '×' ? '+' : '×';
+      if (!this.sumSelection(this.lockedSel.path)?.showTotal) {
+        this.sumOp = now;
+        const pill = pd.pill, x0 = pill.x;
+        this.tweens.add({ duration: 260, update: (t) => !pill.destroyed && (pill.x = x0 + Math.sin(t * Math.PI * 6) * (1 - t) * this.cs * 0.08) });
+        return;
+      }
       this.ghostKey = '';
       this.drawLocked();
       return;
