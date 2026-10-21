@@ -532,12 +532,13 @@ export class BoardView extends Container {
     }
     if (!d.path.includes(cell)) {
       d.path.push(cell);
-      // Once the selection spans cages and leaves its row/column, it's about whole cages: take all of each one entered.
+      // Once the selection spans cages and leaves its row/column, it's about whole cages.
       const n = this.game.n, p0 = d.path[0], cageOf = this.game.topo.cageOf;
       const inLine = d.path.every((c) => Math.floor(c / n) === Math.floor(p0 / n)) || d.path.every((c) => c % n === p0 % n);
       if (!inLine && d.path.some((c) => cageOf[c] !== cageOf[p0])) {
         const before = d.path.length;
-        for (const c of this.game.puzzle.cages[cageOf[cell]].cells) if (!d.path.includes(c)) d.path.push(c);
+        // Every cage touched so far is taken whole (the first time this kicks in, the earlier ones too).
+        for (const ci of new Set(d.path.map((c) => cageOf[c]))) for (const c of this.game.puzzle.cages[ci].cells) if (!d.path.includes(c)) d.path.push(c);
         // A cage taken whole: a small flash around the selection.
         if (d.path.length > before) this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.4);
       }
