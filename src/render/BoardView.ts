@@ -264,6 +264,8 @@ export class CageView extends Container {
   resultText: Text;
   /** 0 = normal palette, 1 = maybe-mode palette (animated by BoardView). */
   mode = 0;
+  /** The selected cell is in this cage: thicker, brighter outline and a slightly bigger label. */
+  selected = false;
   /** Full and wrong (red outline, darker fill, red label) or full and right (subtle green border). */
   state: 'open' | 'ok' | 'wrong' = 'open';
   /** Resting colours: × and ÷ cages sit cooler than + and − ones so they read apart, in maybe mode too. */
@@ -310,6 +312,13 @@ export class CageView extends Container {
     this.resultText.visible = false;
   }
 
+  setSelected(on: boolean): void {
+    if (on === this.selected) return;
+    this.selected = on;
+    this.labelText.scale.set(on ? 1.15 : 1);
+    this.drawShape(0);
+  }
+
   /** Show the cage as open, complete, or wrong (with what it actually came to). */
   setState(state: 'open' | 'ok' | 'wrong', result: number | null): void {
     const wrong = state === 'wrong';
@@ -326,9 +335,11 @@ export class CageView extends Container {
     const cs = this.cs;
     this.fill.clear();
     this.outline.clear();
+    // The selected cell's cage draws a heavier outline, still inside its own cells.
+    const w = this.selected ? this.stroke * 2.1 : this.stroke;
     for (const loop of this.loops) {
       // Inset by half the stroke so neighbouring cages' outlines meet flush, with no gap.
-      const pts = insetLoop(loop, this.stroke / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]);
+      const pts = insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]);
       let fill = mix(mix(this.base.fill, this.base.fillMaybe, this.mode), CAGE.fillGlow, glow);
       let edge = mix(mix(this.base.edge, this.base.edgeMaybe, this.mode), CAGE.edgeGlow, glow);
       if (this.state === 'wrong') {
@@ -337,8 +348,9 @@ export class CageView extends Container {
       } else if (this.state === 'ok') {
         edge = mix(mix(edge, 0x8cff6b, 0.75), CAGE.edgeGlow, glow);
       }
+      if (this.selected) edge = mix(edge, 0xffffff, 0.3);
       this.fill.poly(pts, true).fill({ color: fill, alpha: 0.88 });
-      this.outline.poly(pts, true).stroke({ width: this.stroke, color: edge, alpha: 0.95, join: 'miter' });
+      this.outline.poly(pts, true).stroke({ width: w, color: edge, alpha: 0.95, join: 'miter' });
     }
   }
 }
@@ -1228,6 +1240,7 @@ export class BoardView extends Container {
     for (const cv of this.cageViews) {
       if (cv.destroyed) continue;
       const shown = g.puzzle.cages[cv.index].cells.every((c) => !hidden.has(c));
+      cv.setSelected(cv.index === g.topo.cageOf[this.selected]);
       const status = shown ? g.cageStatus(cv.index) : 'open';
       cv.setState(status, status === 'wrong' ? g.cageResult(cv.index) : null);
     }
@@ -1240,7 +1253,6 @@ export class BoardView extends Container {
       });
     }
     const sel = this.selected;
-    const n = g.n;
     // Digits a chain hasn't revealed yet don't count for the same-digit highlight (it would give them away).
     const selVal = hidden.has(sel) ? EMPTY : g.values[sel];
     // The last move glows: every digit and maybe it put in, and (fainter) the maybes left in cells it
@@ -1284,7 +1296,8 @@ export class BoardView extends Container {
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
       });
-      const sameLine = Math.floor(c / n) === Math.floor(sel / n) || c % n === sel % n;
+      // The selected cell's cage gets the soft highlight (not its row and column).
+      const sameCage = g.topo.cageOf[c] === g.topo.cageOf[sel];
       v.highlight.clear();
       if (c === this.dragSource) v.highlight.rect(0, 0, cs, cs).fill({ color: MAYBE, alpha: 0.3 });
       // Selecting a cell Check marked wrong: pink, so it still reads as the red cell.
@@ -1293,7 +1306,7 @@ export class BoardView extends Container {
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
-      else if (sameLine) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.06 });
+      else if (sameCage) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.08 });
       if (this.guessOrigin?.cell === c) {
         // Hugs the cell edge (inset by half the stroke so it stays inside the cell).
         const w = Math.max(2, cs * 0.045);
