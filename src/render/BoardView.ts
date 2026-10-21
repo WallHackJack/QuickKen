@@ -538,7 +538,8 @@ export class BoardView extends Container {
       if (!inLine && d.path.some((c) => cageOf[c] !== cageOf[p0])) {
         const before = d.path.length;
         // Every cage touched so far is taken whole (the first time this kicks in, the earlier ones too).
-        for (const ci of new Set(d.path.map((c) => cageOf[c]))) for (const c of this.game.puzzle.cages[ci].cells) if (!d.path.includes(c)) d.path.push(c);
+        // Only through empty or maybe cells: a cell with a digit stays just itself.
+        for (const ci of new Set(d.path.filter((c) => this.game.values[c] === EMPTY).map((c) => cageOf[c]))) for (const c of this.game.puzzle.cages[ci].cells) if (!d.path.includes(c)) d.path.push(c);
         // A cage taken whole: a small flash around the selection.
         if (d.path.length > before) this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.4);
       }
