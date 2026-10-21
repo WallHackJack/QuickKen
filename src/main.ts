@@ -214,13 +214,11 @@ function digitAction(c: number, d: number, asMaybe: boolean): void {
   board.disproven.delete(c);
   const justAdded = firstMaybe?.cell === c && firstMaybe.digit === d;
   firstMaybe = null;
-  if (game.values[c] === d) {
-    notesMode = true;
-    noteAction(c, d);
-  } else if (game.values[c] === EMPTY && game.notes[c] === 1 << d && (justAdded || !asMaybe)) {
+  // Pressing a digit never switches modes (only tapping the selected cell does).
+  if (game.values[c] === d && !asMaybe) return;
+  if (game.values[c] === EMPTY && game.notes[c] === 1 << d && (justAdded || !asMaybe)) {
     // A cell's only maybe becomes the number when typed as a number, or when it was the maybe just
     // put in as the cell's first. Otherwise (maybe mode) pressing it again just removes it.
-    notesMode = false;
     apply(game.setValue(c, d));
   } else if (asMaybe) noteAction(c, d);
   else apply(game.setValue(c, d));
