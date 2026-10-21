@@ -287,7 +287,8 @@ export class CageView extends Container {
   /** What the cage's digits actually come to, top-right of its bottom-right cell while it is wrong. */
   resultText: Text;
   /** Full and wrong (red outline, darker fill, red label) or full and right (subtle green border). */
-  state: 'open' | 'ok' | 'wrong' = 'open';
+  /** 'guessed': complete and right, but some digit in it is from an open guess (yellow, not green). */
+  state: 'open' | 'ok' | 'guessed' | 'wrong' = 'open';
   /** Resting colours: × and ÷ cages sit cooler than + and − ones so they read apart, in maybe mode too. */
   private readonly base: { fill: number; edge: number };
   readonly center: { x: number; y: number };
@@ -333,13 +334,13 @@ export class CageView extends Container {
   }
 
   /** Show the cage as open, complete, or wrong (with what it actually came to). */
-  setState(state: 'open' | 'ok' | 'wrong', result: number | null): void {
+  setState(state: 'open' | 'ok' | 'guessed' | 'wrong', result: number | null): void {
     const wrong = state === 'wrong';
     this.resultText.visible = wrong;
     if (wrong) this.resultText.text = result === null || Number.isNaN(result) ? '?' : `${+result.toFixed(3)}`;
     if (state === this.state) return;
     this.state = state;
-    this.labelText.tint = wrong ? ERROR : state === 'ok' ? COMPLETE_INK : 0xffffff;
+    this.labelText.tint = wrong ? ERROR : state === 'ok' ? COMPLETE_INK : state === 'guessed' ? 0xfff0b0 : 0xffffff;
     this.drawShape(0);
   }
 
@@ -359,6 +360,8 @@ export class CageView extends Container {
         edge = mix(ERROR, edge, glow);
       } else if (this.state === 'ok') {
         edge = mix(mix(edge, 0x8cff6b, 0.75), CAGE.edgeGlow, glow);
+      } else if (this.state === 'guessed') {
+        edge = mix(mix(edge, GUESS_COLOR, 0.8), CAGE.edgeGlow, glow);
       }
       this.fill.poly(pts, true).fill({ color: fill, alpha: 0.55 });
       this.outline.poly(pts, true).stroke({ width: w, color: edge, alpha: 0.95, join: 'miter' });
@@ -1273,7 +1276,9 @@ export class BoardView extends Container {
       const shown = g.puzzle.cages[cv.index].cells.every((c) => !hidden.has(c));
       if (cv.index === g.topo.cageOf[this.selected]) this.selectCage(cv.index);
       const status = shown ? g.cageStatus(cv.index) : 'open';
-      cv.setState(status, status === 'wrong' ? g.cageResult(cv.index) : null);
+      // Complete, but resting on a guess: its own yellow style until the guess is confirmed.
+      const guessed = status === 'ok' && g.puzzle.cages[cv.index].cells.some((c) => g.layers[c] > 0);
+      cv.setState(guessed ? 'guessed' : status, status === 'wrong' ? g.cageResult(cv.index) : null);
     }
     // Cages down to one empty cell whose math no digit can complete: that cell gets a red X.
     const impossible = new Set<number>();
