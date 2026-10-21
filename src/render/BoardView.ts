@@ -360,7 +360,7 @@ export class CageView extends Container {
       } else if (this.state === 'ok') {
         edge = mix(mix(edge, 0x8cff6b, 0.75), CAGE.edgeGlow, glow);
       }
-      this.fill.poly(pts, true).fill({ color: fill, alpha: 0.7 });
+      this.fill.poly(pts, true).fill({ color: fill, alpha: 0.55 });
       this.outline.poly(pts, true).stroke({ width: w, color: edge, alpha: 0.95, join: 'miter' });
     }
   }
@@ -1204,7 +1204,7 @@ export class BoardView extends Container {
     this.position.set(x, y);
     this.hitArea = new Rectangle(0, 0, size, size);
 
-    this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.5 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
+    this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.38 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
     this.frame.tint = 0xffffff;
     this.addChild(this.frame);
 
@@ -1792,11 +1792,11 @@ export class BoardView extends Container {
     this.selLight = life;
     const color = mix(SELECT_RING, MAYBE, this.maybeTarget);
     this.lighting?.add({
-      segments: this.loopSegments(cv.loops, -this.cs * 0.06), color, radius: this.cs * 0.22,
+      segments: this.loopSegments(cv.loops, -this.cs * 0.06), color, radius: this.cs * 0.28,
       level: () => {
         const t = performance.now();
         const on = Math.min(1, (t - life.born) / 60);
-        const base = 0.12 + 0.3 * Math.exp(-(t - life.born) / 160);
+        const base = 0.2 + 0.4 * Math.exp(-(t - life.born) / 160);
         const off = life.gone ? Math.max(0, 1 - (t - life.gone) / 180) : 1;
         return on * base * off;
       },

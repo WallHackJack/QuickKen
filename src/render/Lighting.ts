@@ -138,7 +138,7 @@ void main(void) {
   vec3 lit = base.rgb + albedo * diff * (0.6 + 1.4 * stroke) + spec * 0.9 * stroke * h + halo * 0.35;
   // Fog over the board: barely there on its own, but lights scatter in it strongly.
   float f = fog(p);
-  lit += vec3(0.025, 0.03, 0.05) * f * base.a + air * f * f * 1.1;
+  lit += vec3(0.025, 0.03, 0.05) * f * base.a + air * f * 1.9;
   // Crests catch light, troughs fall into shade, and slopes facing the top-left glint.
   lit *= 1.0 + rip.z * 0.25;
   lit += ripTint * (max(rip.z, 0.0) * 0.12 + max(dot(rip.xy, vec2(-0.7, -0.7)), 0.0) * 0.8);
