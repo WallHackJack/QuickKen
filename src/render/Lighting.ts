@@ -27,6 +27,8 @@ export interface LightSpec {
   level(t: number): number;
   /** Distance (px) at which the light has fallen to half. */
   radius: number;
+  /** For a light that lasts until something ends it (duration Infinity): false removes it. */
+  alive?: () => boolean;
 }
 
 interface Source extends LightSpec {
@@ -210,7 +212,7 @@ export class Lighting {
         src++;
         lights.push({ segs, rgb, level });
       }
-      return t < 1;
+      return t < 1 && (s.alive?.() ?? true);
     });
     this.u.uCount = src;
     this.lightButtons(lights);

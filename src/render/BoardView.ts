@@ -402,6 +402,8 @@ export class BoardView extends Container {
   private selLayer = new Graphics();
   private selRings: { ci: number; t: number; out: boolean }[] = [];
   private selCage = -1;
+  /** The selected cage's light: flashes, then stays on faintly until the selection moves on. */
+  private selLight: { born: number; gone: number } | null = null;
   /** Whole-board scale for the finish bump (around the board's centre). */
   private bump = 1;
   private home = { x: 0, y: 0 };
@@ -1212,6 +1214,7 @@ export class BoardView extends Container {
     this.selLayer = new Graphics();
     this.selRings = [];
     this.selCage = -1;
+    this.selLight = null;
     this.addChild(this.selLayer, this.dragLayer, this.ghostLabels, this.particles.container, this.sumPill);
 
     this.refresh();
@@ -1741,7 +1744,23 @@ export class BoardView extends Container {
     const cv = this.cageViews[ci];
     if (!cv) return;
     // A small light and droplet: gentler than any other effect.
-    this.flashLight(this.loopSegments(cv.loops, -this.cs * 0.06), SELECT_RING, 380, this.cs * 0.22, 0.35);
+    // Flash, then settle to a faint glow that stays while selected; the old one fades out quickly.
+    const now = performance.now();
+    if (this.selLight) this.selLight.gone = now;
+    const life = { born: now, gone: 0 };
+    this.selLight = life;
+    const color = mix(SELECT_RING, 0x4fb4ff, this.maybeTarget);
+    this.lighting?.add({
+      segments: this.loopSegments(cv.loops, -this.cs * 0.06), color, radius: this.cs * 0.22,
+      level: () => {
+        const t = performance.now();
+        const on = Math.min(1, (t - life.born) / 60);
+        const base = 0.12 + 0.3 * Math.exp(-(t - life.born) / 160);
+        const off = life.gone ? Math.max(0, 1 - (t - life.gone) / 180) : 1;
+        return on * base * off;
+      },
+      alive: () => !life.gone || performance.now() - life.gone < 180,
+    }, Infinity);
     this.ripple(cv.loops, 0.28, `select${ci}`, SELECT_RING);
   }
 
