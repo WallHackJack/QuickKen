@@ -1800,7 +1800,7 @@ export class BoardView extends Container {
       },
       alive: () => !life.gone || performance.now() - life.gone < 180,
     }, Infinity);
-    this.ripple(cv.loops, 0.28, `select${ci}`, SELECT_RING);
+    this.ripple(cv.loops, 0.28, `select${ci}`, color);
   }
 
   /** Animate and draw the selection rings: thickness and opacity ease in (or out) together. */
