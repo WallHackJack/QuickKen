@@ -41,9 +41,9 @@ interface PlayingChain {
   cancelled: boolean;
 }
 // Maybe-mode violet (matches --maybe in style.css).
-// Maybe mode is warm orange, well apart from normal mode's blues.
-const MAYBE = 0xff9a4d;
-const MAYBE_LIGHT = 0xffd9b5;
+// Mode colours: maybe mode is green (safe, just notes), normal entry is red (a real answer, risky).
+const MAYBE = 0x3dff9a;
+const MAYBE_LIGHT = 0xc4ffe0;
 
 /** Columns in the maybe grid inside a cell; the digit pad uses the same layout. */
 export const noteColumns = (digits: number): number => (digits <= 4 ? 2 : digits <= 9 ? 3 : 4);
@@ -60,8 +60,8 @@ const CLAUDE_LIGHT = 0xffd9b8;
 const HIDDEN = 0xffc94f;
 /** A leftover that pins a single cell's digit (released, it's entered). */
 const CONFIRM = 0x8cff6b;
-/** The selected cell's cage ring: blue in normal mode (it turns maybe-orange in maybe mode). */
-const SELECT_RING = 0x4fb4ff;
+/** The selected cell's cage ring: red in normal mode (it turns maybe-green in maybe mode). */
+const SELECT_RING = 0xff5a64;
 // Errors: clashes, wrong cages, chains broken by a mistake.
 const ERROR = 0xff4d6d;
 
@@ -1325,7 +1325,7 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 && g.layers[c] === g.layer ? (this.maybeTarget ? color : mix(color, 0x9aa3c0, 0.4)) : this.maybeTarget ? 0xffa860 : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 && g.layers[c] === g.layer ? (this.maybeTarget ? color : mix(color, 0x9aa3c0, 0.4)) : this.maybeTarget ? 0x6dffae : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
