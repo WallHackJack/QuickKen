@@ -12,7 +12,9 @@ import type { Lighting } from './Lighting';
 import type { Particles } from './Particles';
 import { ease, type Tweens } from './Tweens';
 
-export const LAYER_COLORS = [0xeaf2ff, 0x4fd8ff, 0xff5cc8, 0xffc94f, 0x8cff6b, 0xb18cff];
+/** Ink for normal entries, then for guesses: one guess colour (violet), whatever the guess depth. */
+export const GUESS_COLOR = 0xc77dff;
+export const LAYER_COLORS = [0xeaf2ff, GUESS_COLOR];
 const layerColor = (l: number) => LAYER_COLORS[Math.min(l, LAYER_COLORS.length - 1)];
 const WAVE_COLORS = [[0xffffff, 0x9fe8ff], [0x4fd8ff, 0x9fffe0], [0x8cff6b, 0xfff36b], [0xffc94f, 0xff8a3d], [0xff5cc8, 0xff3d6e], [0xb18cff, 0xffffff]];
 const FONT = 'Segoe UI, Roboto, Helvetica Neue, system-ui, sans-serif';
@@ -384,6 +386,8 @@ export class BoardView extends Container {
   lighting: Lighting | null = null;
   /** The running guess's first move (ringed in the guess colour). */
   guessOrigin: { cell: number; color: number } | null = null;
+  /** First digits of earlier guesses still open (under the current one): a small inset square each. */
+  olderGuessOrigins: number[] = [];
   /**
    * Cells where an undone guess started, with the digit it tried: shown in place, light red with a red
    * X (display only; the cell is empty). Clear or any entry in the cell removes it.
@@ -1163,6 +1167,7 @@ export class BoardView extends Container {
     if (this.game !== game) {
       this.disproven.clear();
       this.guessOrigin = null;
+      this.olderGuessOrigins = [];
     }
     this.game = game;
     // Pending animations reference the old views.
@@ -1272,7 +1277,8 @@ export class BoardView extends Container {
       const ch = hidden.has(c) ? undefined : recent.get(c);
       const val = g.values[c];
       // Givens (single-cell cages, locked) look like any completed cage.
-      const color = layerColor(g.layers[c]);
+      // Only the running guess is coloured; earlier (still open) guesses read as normal entries.
+      const color = layerColor(g.layers[c] === g.layer ? g.layers[c] : 0);
       const show = val !== EMPTY && !hidden.has(c);
       v.value.text = show ? g.puzzle.digits.labels[val] : '';
       // Digits of a completed cage lean green.
@@ -1300,7 +1306,7 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : this.maybeTarget ? 0xffa860 : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 && g.layers[c] === g.layer ? color : this.maybeTarget ? 0xffa860 : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
@@ -1320,6 +1326,11 @@ export class BoardView extends Container {
         // Hugs the cell edge (inset by half the stroke so it stays inside the cell).
         const w = Math.max(2, cs * 0.045);
         v.highlight.rect(w / 2, w / 2, cs - w, cs - w).stroke({ width: w, color: this.guessOrigin.color, alpha: 0.9 });
+      }
+      if (this.olderGuessOrigins.includes(c)) {
+        // An earlier guess started here: a small, dimmer inset square.
+        const w = Math.max(1.5, cs * 0.03);
+        v.highlight.rect(cs * 0.16, cs * 0.16, cs * 0.68, cs * 0.68).stroke({ width: w, color: GUESS_COLOR, alpha: 0.6 });
       }
     }
   }

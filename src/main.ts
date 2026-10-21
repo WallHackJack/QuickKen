@@ -197,8 +197,11 @@ function sync(): void {
   }
   const origin = game.guessOrigin();
   const ring = origin ? { cell: origin.cell, color: LAYER_COLORS[Math.min(game.layer, LAYER_COLORS.length - 1)] } : null;
-  if (ring?.cell !== board.guessOrigin?.cell || ring?.color !== board.guessOrigin?.color) {
+  // Earlier guesses still open under the current one: their first digits keep a small square.
+  const older = Array.from({ length: Math.max(0, game.layer - 1) }, (_, i) => game!.guessOrigin(i + 1)?.cell ?? -1).filter((c) => c >= 0);
+  if (ring?.cell !== board.guessOrigin?.cell || ring?.color !== board.guessOrigin?.color || older.join() !== board.olderGuessOrigins.join()) {
     board.guessOrigin = ring;
+    board.olderGuessOrigins = older;
     board.refresh();
   }
   hud.sync({ notesMode, layer: game.layer, cellNotes: game.notes[board.selected], canUndo: game.history.length > 0 || board.disproven.size > 0, canRedo: game.canRedo });
