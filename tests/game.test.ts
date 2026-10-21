@@ -66,6 +66,21 @@ describe('Game', () => {
     expect(before).toBeDefined();
   });
 
+  it('selection steps undo and redo without touching cells', () => {
+    const g = new Game(puzzle);
+    g.setValue(0, sol[0]);
+    g.pushView([1, 2], null);
+    expect(g.history.at(-1)?.kind).toBe('view');
+    expect(g.lastChanges().has(0)).toBe(true);
+    g.undo();
+    expect(g.values[0]).toBe(sol[0]);
+    g.redo();
+    expect(g.history.at(-1)?.view?.sel).toEqual([1, 2]);
+    const h = new Game(puzzle);
+    h.importHistory(g.exportHistory());
+    expect(h.history.at(-1)?.kind).toBe('view');
+  });
+
   it('does not auto-fill when adding a first maybe', () => {
     const g = new Game(puzzle);
     g.toggleNote(0, 2);

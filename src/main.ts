@@ -72,6 +72,13 @@ const handlers: HudHandlers = {
   erase: () => clearCell(board.selected),
   undo: () => {
     if (!game) return;
+    const top = game.history.at(-1);
+    if (top?.kind === 'view') {
+      game.undo();
+      board.setLocked(top.view?.prev ?? null);
+      sync();
+      return;
+    }
     // A guess whose very first move ran straight into a conflict is disproven: undoing that move drops
     // the guess and crosses out its digit, the same as "Undo guess".
     const [prev, last] = game.history.slice(-2);
@@ -95,6 +102,12 @@ const handlers: HudHandlers = {
   redo: () => {
     if (!game?.canRedo) return;
     game.redo();
+    const redone = game.history.at(-1);
+    if (redone?.kind === 'view') {
+      board.setLocked(redone.view?.sel ?? null);
+      sync();
+      return;
+    }
     // Replay the move the way it played the first time (its chain included), not a snap.
     const fx = game.lastPlayed();
     board.hintCells.clear();
@@ -436,6 +449,11 @@ board.onCellTap = (c) => {
   sync();
 };
 board.onCellReselect = () => handlers.toggleNotes();
+// Locking, growing or clearing a drag selection is an undo step.
+board.onSelectionChange = (sel, prev) => {
+  game?.pushView(sel, prev);
+  sync();
+};
 // Long-press a × cage: its target's prime factorisation.
 board.onCageHold = (ci) => {
   if (!game) return;

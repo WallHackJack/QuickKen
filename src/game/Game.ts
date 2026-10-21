@@ -23,11 +23,13 @@ interface Change {
 }
 
 interface Command {
-  kind: 'edit' | 'guess-start' | 'guess-keep';
+  kind: 'edit' | 'guess-start' | 'guess-keep' | 'view';
   layer: number;
   changes: Change[];
   /** How the move played (its chain waves), so redo can play it again. */
   fx?: Pick<ActionResult, 'waves' | 'eliminated' | 'broken'>;
+  /** view: a locked drag selection shown (sel) in place of the previous one (prev); null = none. */
+  view?: { sel: number[] | null; prev: number[] | null };
   /** guess-keep: the guess as it was before confirming (its part of the history and the cell layers). */
   keep?: { at: number; tail: Command[]; layers: number[]; layer: number };
 }
@@ -115,6 +117,12 @@ export class Game {
     return this.history.at(-1)?.changes.map((ch) => ch.cell) ?? [];
   }
 
+  /** Record a locked-selection change as an undo step (it changes no cells). */
+  pushView(sel: number[] | null, prev: number[] | null): void {
+    this.history.push({ kind: 'view', layer: this.layer, changes: [], view: { sel, prev } });
+    this.redoStack = [];
+  }
+
   /** Cells the next undo would change, newest change first (the order a rewind plays them in). */
   peekUndo(): number[] {
     return (this.history.at(-1)?.changes ?? []).map((ch) => ch.cell).reverse();
@@ -148,7 +156,9 @@ export class Game {
 
   /** The last move's changes, per cell: its value and maybes before and after. */
   lastChanges(): Map<number, { before: { value: number; notes: number }; after: { value: number; notes: number } }> {
-    return new Map((this.history.at(-1)?.changes ?? []).map((ch) => [ch.cell, { before: ch.before, after: ch.after }]));
+    // Selection steps change no cells: the last move is the last one that did.
+    const last = this.history.findLast((c) => c.kind !== 'view');
+    return new Map((last?.changes ?? []).map((ch) => [ch.cell, { before: ch.before, after: ch.after }]));
   }
 
   /** The undo/redo history as text, for saving. Only the newest `limit` moves are kept. */
@@ -164,7 +174,7 @@ export class Game {
       const n = this.values.length;
       const ok = (cmds: unknown): cmds is Command[] =>
         Array.isArray(cmds) &&
-        cmds.every((c: Command) => (c.kind === 'edit' || c.kind === 'guess-start' || c.kind === 'guess-keep') && Array.isArray(c.changes) && c.changes.every((ch) => Number.isInteger(ch.cell) && ch.cell >= 0 && ch.cell < n && ch.before && ch.after));
+        cmds.every((c: Command) => (c.kind === 'edit' || c.kind === 'guess-start' || c.kind === 'guess-keep' || c.kind === 'view') && Array.isArray(c.changes) && c.changes.every((ch) => Number.isInteger(ch.cell) && ch.cell >= 0 && ch.cell < n && ch.before && ch.after));
       if (ok(history) && ok(redo)) {
         this.history = history;
         this.redoStack = redo;
@@ -664,6 +674,7 @@ export class Game {
       this.layer--;
       return [];
     }
+    if (cmd.kind === 'view') return [];
     if (cmd.kind === 'guess-keep' && cmd.keep) {
       // Un-confirm: the guess comes back as it was (its moves, its colour, its start).
       const k = cmd.keep;
@@ -686,6 +697,10 @@ export class Game {
   redo(): number[] {
     const cmd = this.redoStack.pop();
     if (!cmd) return [];
+    if (cmd.kind === 'view') {
+      this.history.push(cmd);
+      return [];
+    }
     if (cmd.kind === 'guess-keep') {
       const changed = this.confirmGuess();
       this.history.push(cmd);
