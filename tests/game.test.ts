@@ -529,6 +529,15 @@ describe('Game', () => {
     for (const c of [2, 3, 4]) expect(g.notes[c]).toBe(0);
   });
 
+  it('cells down to one maybe never form a pair', () => {
+    const g = new Game(puzzle);
+    g.settings.autoFill = false;
+    g.copyNotes([0], 0b01);
+    g.copyNotes([1], 0b10);
+    const { groups } = g.fillLines([[0, 1, 2, 3, 4]]);
+    expect(groups.some((gr) => gr.cells.includes(0) || gr.cells.includes(1))).toBe(false);
+  });
+
   it('a line sweep with no groups just fills', () => {
     const g = new Game(puzzle);
     const { filled, groups } = g.fillLines([[0, 1, 2, 3, 4]]);

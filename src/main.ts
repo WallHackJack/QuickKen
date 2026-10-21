@@ -523,7 +523,7 @@ function pasteGroup(source: number, painted: number[]): DragResult['pairAfter'] 
   const group = [source, ...painted];
   const mask = g.notes[source];
   // A naked group needs every cell holding exactly the same k maybes.
-  if (maskIndices(mask).length !== group.length || group.some((c) => g.notes[c] !== mask)) return undefined;
+  if (maskIndices(mask).length < 2 || maskIndices(mask).length !== group.length || group.some((c) => g.notes[c] !== mask)) return undefined;
   const row = group.every((c) => Math.floor(c / n) === Math.floor(source / n));
   const col = group.every((c) => c % n === source % n);
   if (!row && !col) return undefined;

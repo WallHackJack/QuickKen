@@ -382,7 +382,8 @@ export class Game {
   private findGroup(line: number[]): { cells: number[]; mask: number } | null {
     const open = line.filter((c) => this.values[c] === EMPTY && this.notes[c]);
     for (let k = 2; k <= Math.min(4, open.length - 1); k++) {
-      const pool = open.filter((c) => popcount(this.notes[c]) <= k);
+      // A cell down to one maybe is decided, not part of a group.
+      const pool = open.filter((c) => popcount(this.notes[c]) >= 2 && popcount(this.notes[c]) <= k);
       const pick: number[] = [];
       const search = (from: number): { cells: number[]; mask: number } | null => {
         if (pick.length === k) {

@@ -492,7 +492,8 @@ export class BoardView extends Container {
     const g = this.game;
     const n = g.n;
     if (path.length < 2) return;
-    if (!path.every((c) => g.values[c] === EMPTY && g.notes[c] !== 0)) return;
+    // Every cell of a group needs 2+ maybes: a cell down to one is already decided, not part of a pair.
+    if (!path.every((c) => g.values[c] === EMPTY && popcount(g.notes[c]) >= 2)) return;
     const mask = path.reduce((m, c) => m | g.notes[c], 0);
     if (popcount(mask) !== path.length) return;
     const r0 = Math.floor(path[0] / n), c0 = path[0] % n;
