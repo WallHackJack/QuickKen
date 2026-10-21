@@ -486,7 +486,8 @@ export class BoardView extends Container {
       if (pd) {
         const q = e.getLocalPosition(this);
         if (Math.hypot(q.x - pd.start.x, q.y - pd.start.y) > this.cs * 0.1) pd.moved = true;
-        pd.pill.position.set(q.x + pd.dx, q.y + pd.dy);
+        // The main pill stays put (a tap switches + and ×); leftover pills follow the finger.
+        if (!pd.main) pd.pill.position.set(q.x + pd.dx, q.y + pd.dy);
         return;
       }
       const d = this.drag;
@@ -703,8 +704,12 @@ export class BoardView extends Container {
     sub.y = label.height / 2 - subH / 2 + sub.height * 0.38;
     const w = Math.max(label.width, sub.visible ? sub.width : 0) + cs * 0.4, h = label.height + subH + cs * 0.14;
     bg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h, w) / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: 0xeaf2ff, alpha: 0.85 });
-    const spot = this.pillSpots.get('main') ?? this.pillSpot(region, new Set([...region, ...(info.hidden?.cells ?? [])]));
-    pill.position.set(spot.x, spot.y);
+    // The selection's own pill sits in its middle.
+    const n = this.game.n;
+    pill.position.set(
+      region.reduce((s, c) => s + (c % n) + 0.5, 0) / region.length * cs,
+      region.reduce((s, c) => s + Math.floor(c / n) + 0.5, 0) / region.length * cs,
+    );
     if (!pill.visible) {
       pill.visible = true;
       pill.scale.set(0.6);
@@ -2004,7 +2009,7 @@ export class BoardView extends Container {
     const pd = this.pillDrag;
     this.pillDrag = null;
     if (!pd) return;
-    if (!pd.moved) {
+    if (!pd.moved || pd.main) {
       if (!pd.main || !this.lockedSel) return;
       // Tap on the main pill: switch between adding and multiplying.
       const now = this.sumSelectionOp(this.lockedSel.path);
@@ -2050,7 +2055,7 @@ export class BoardView extends Container {
     this.selFade += Math.sign(target - this.selFade) * Math.min(Math.abs(target - this.selFade), dtMs / 160);
     const glow = this.dragGlow;
     // Full while drawing a selection, much dimmer once locked, off otherwise.
-    const want = d?.active && !d.locked ? 1 : this.lockedSel || d?.locked ? 0.35 : 0;
+    const want = d?.active && !d.locked ? 1 : this.lockedSel || d?.locked ? 0.7 : 0;
     glow.level += Math.sign(want - glow.level) * Math.min(Math.abs(want - glow.level), dtMs / 200);
     glow.flash *= Math.exp(-dtMs / 260);
     const g = this.dragHold;
