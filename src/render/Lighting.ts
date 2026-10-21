@@ -27,6 +27,8 @@ export interface LightSpec {
   level(t: number): number;
   /** Distance (px) at which the light has fallen to half. */
   radius: number;
+  /** A moving light: its segments at progress t (used instead of `segments`). */
+  segmentsAt?: (t: number) => number[][];
   /** For a light that lasts until something ends it (duration Infinity): false removes it. */
   alive?: () => boolean;
 }
@@ -202,7 +204,7 @@ export class Lighting {
       if (src < MAX_SRC && level > 0.001) {
         const rgb = [(s.color >> 16) / 255, ((s.color >> 8) & 255) / 255, (s.color & 255) / 255];
         const segs: number[][] = [];
-        for (const [x1, y1, x2, y2] of fitSegments(s.segments)) {
+        for (const [x1, y1, x2, y2] of fitSegments(s.segmentsAt ? s.segmentsAt(t) : s.segments)) {
           const a = this.space.toGlobal({ x: x1, y: y1 }), b = this.space.toGlobal({ x: x2, y: y2 });
           uSeg.set([a.x, a.y, b.x, b.y], (src * LIGHT_SEGS + segs.length) * 4);
           segs.push([a.x, a.y, b.x, b.y]);

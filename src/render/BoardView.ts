@@ -1025,12 +1025,19 @@ export class BoardView extends Container {
     }
     // All good: sweep from the top-left corner.
     const n = this.game.n;
-    for (let k = 0; k <= 2 * (n - 1); k += 2) {
-      // Every other diagonal carries a light (enough for a smooth band within the light budget).
-      const a = this.cellCenter(Math.min(k, n - 1) + Math.max(0, k - (n - 1)) * n);
-      const b = this.cellCenter(Math.max(0, k - (n - 1)) + Math.min(k, n - 1) * n);
-      this.tweens.after(k * 12, () => this.flashLight([[a.x, a.y, b.x, b.y]], 0x8cff6b, 420, cs * 0.45, 0.8));
-    }
+    // One continuous band of light: a diagonal line across the whole board gliding from the top-left
+    // corner to the bottom-right in step with the cell sweep.
+    const size = n * cs;
+    const sweepMs = 2 * (n - 1) * 12 + 320;
+    this.lighting?.add({
+      segments: [],
+      segmentsAt: (t) => {
+        const at = t * 2 * size; // the line x + y = at, extended past the board edges
+        return [[at + cs, -cs, at - size - cs, size + cs]];
+      },
+      color: 0x8cff6b, radius: cs * 0.4,
+      level: (t) => 0.75 * Math.sin(Math.PI * Math.min(1, t)),
+    }, sweepMs);
     for (const c of checked) {
       const delay = ((c % n) + Math.floor(c / n)) * 12;
       flash(c, 0x8cff6b, delay);
