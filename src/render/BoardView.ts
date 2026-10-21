@@ -132,7 +132,7 @@ interface DragState {
 
 // One cage palette for now; `glow` lerps towards the bright pair during completion flashes,
 // and maybe mode shifts fill/edge towards violet.
-const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe6ecff, inner: 0xffffff, fillMaybe: 0x2b1609, edgeMaybe: 0xff9a4d };
+const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe6ecff, inner: 0xffffff, fillMaybe: 0x141a3c, edgeMaybe: 0xff9a4d };
 /** Label ink of a completed cage (its digits get a lighter green lean). */
 const COMPLETE_INK = 0xc8ffb8;
 
@@ -281,7 +281,7 @@ export class CageView extends Container {
     this.loops = cageLoops(cage.cells, n);
     this.stroke = Math.max(1.5, cs * 0.03);
     this.base = cage.op === 'mul' || cage.op === 'div'
-      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x2a200a, edgeMaybe: 0xe8b04a }
+      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x0c2640, edgeMaybe: 0xe8b04a }
       : { fill: CAGE.fill, edge: CAGE.edge, fillMaybe: CAGE.fillMaybe, edgeMaybe: CAGE.edgeMaybe };
     const cx = cage.cells.reduce((s, c) => s + (c % n) + 0.5, 0) / cage.cells.length;
     const cy = cage.cells.reduce((s, c) => s + Math.floor(c / n) + 0.5, 0) / cage.cells.length;
@@ -1289,7 +1289,7 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : this.maybeTarget ? 0xffffff : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : this.maybeTarget ? 0xffa860 : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
@@ -1300,7 +1300,7 @@ export class BoardView extends Container {
       if (c === this.dragSource) v.highlight.rect(0, 0, cs, cs).fill({ color: MAYBE, alpha: 0.3 });
       // Selecting a cell Check marked wrong: pink, so it still reads as the red cell.
       else if (c === sel && this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff6fcf, alpha: 0.38 });
-      else if (c === sel) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffffff, alpha: 0.22 });
+      else if (c === sel) v.highlight.rect(0, 0, cs, cs).fill(this.maybeTarget ? { color: 0x4fa8ff, alpha: 0.32 } : { color: 0xffffff, alpha: 0.22 });
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
@@ -1764,7 +1764,7 @@ export class BoardView extends Container {
       const line = w * (0.4 + 0.6 * k);
       for (const loop of cv.loops) {
         const at = (d: number) => insetLoop(loop, -d / cs).flatMap(([x, y]) => [x * cs, y * cs]);
-        g.poly(at(line * 0.5), true).stroke({ width: line, color: SELECT_RING, alpha: 0.95 * k, join: 'miter' });
+        g.poly(at(line * 0.5), true).stroke({ width: line, color: mix(SELECT_RING, 0x4fb4ff, this.maybeMix), alpha: 0.95 * k, join: 'miter' });
         g.poly(at(line + w * 0.25), true).stroke({ width: Math.max(1, w * 0.45), color: 0x05060f, alpha: 0.7 * k, join: 'miter' });
       }
     }
@@ -1783,7 +1783,7 @@ export class BoardView extends Container {
         cv.drawShape(0);
       }
       if (!this.frame.destroyed) this.frame.tint = mix(0xffffff, 0xffd2a8, this.maybeMix);
-      this.bg.maybe = this.maybeMix;
+      // (The background stays blue in maybe mode; only the lines and maybes turn orange.)
     }
     const d = this.drag;
     if (d?.active && d.copying) {
