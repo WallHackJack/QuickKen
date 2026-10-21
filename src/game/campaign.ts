@@ -14,7 +14,7 @@ const holesOutside = (n: number, used: number[]): number[] => Array.from({ lengt
 export const LEVELS: Level[] = [
   {
     // One row of six and a single cell hanging under its end: an L.
-    // ponytail: no answer key (several fills work), so any valid fill wins and Check has nothing to compare.
+    // Only the hanging cell is asked for: whatever order the top row takes, it must be 3.
     name: 'The L',
     puzzle: {
       size: 6,
@@ -25,6 +25,7 @@ export const LEVELS: Level[] = [
         { cells: [4, 5, 11], op: 'add', target: 14 },
       ],
       holes: holesOutside(6, [0, 1, 2, 3, 4, 5, 11]),
+      rules: { goal: { cell: 11, digit: 2 }, lockCursor: true, noMaybes: true, digitsOnly: true },
       meta: { rating: 'Campaign 1' },
     },
   },

@@ -813,6 +813,8 @@ export class Game {
   }
 
   isSolved(): boolean {
+    const goal = this.puzzle.rules?.goal;
+    if (goal) return this.values[goal.cell] === goal.digit;
     if (this.values.some((v, c) => v === EMPTY && this.topo.cageOf[c] >= 0)) return false;
     if (this.puzzle.solution) return this.puzzle.solution.every((d, c) => this.values[c] === d);
     return this.conflicts().size === 0;

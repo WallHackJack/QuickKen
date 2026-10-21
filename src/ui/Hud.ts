@@ -379,7 +379,9 @@ export class Hud {
     return d;
   }
 
-  setDigits(labels: string[]): void {
+  /** With `digitsOnly` (campaign levels) the other buttons are hidden and the digits sit to the right. */
+  setDigits(labels: string[], digitsOnly = false): void {
+    this.el.classList.toggle('digits-only', digitsOnly);
     this.pad.innerHTML = '';
     // Same rows and columns as the maybes inside a cell: [1 2 3] / [4 5 6].
     const letters = digitLetters(labels.length);
@@ -403,7 +405,8 @@ export class Hud {
     });
     // An extra column on the right: Undo beside the first row of digits, Clear beside the second.
     const cols = noteColumns(labels.length);
-    this.pad.style.gridTemplateColumns = `repeat(${cols}, 1fr) 1.1fr`;
+    this.pad.style.gridTemplateColumns = digitsOnly ? `1.1fr repeat(${cols}, 1fr)` : `repeat(${cols}, 1fr) 1.1fr`;
+    if (digitsOnly) this.padButtons.forEach((b, d) => (b.style.gridColumn = String((d % cols) + 2)));
     this.btn.undo.style.gridColumn = this.btn.erase.style.gridColumn = String(cols + 1);
     this.btn.undo.style.gridRow = '1';
     this.btn.erase.style.gridRow = '2';

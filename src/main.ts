@@ -181,10 +181,12 @@ const handlers: HudHandlers = {
     applyOptions();
   },
   toggleNotes: () => {
+    if (rules().noMaybes) return;
     notesMode = !notesMode;
     sync();
   },
   sweepStep: (digits) => {
+    if (rules().noMaybes) return;
     const c = board.selected;
     if (!game || solvedAt || c < 0 || game.givens[c]) return;
     board.disproven.delete(c);
@@ -230,6 +232,9 @@ function finishSolve(): void {
 
 function sync(): void {
   if (!game) return;
+  const lock = rules();
+  if (lock.lockCursor && lock.goal) board.selected = lock.goal.cell;
+  if (lock.noMaybes) notesMode = false;
   // Solved some other way than apply (a redo, a drag drop): same finish.
   if (!solvedAt && game.isSolved()) finishSolve();
   // Undo (or a stale save) can take a finished puzzle back to unfinished: unlock input and resume the
@@ -256,8 +261,12 @@ function sync(): void {
  * A digit press on cell c. Pressing the digit a cell already shows swaps it between the value and
  * the lone maybe, in either mode: 2 → maybe [2], maybe [2] → 2. The input mode follows the swap.
  */
+/** The current level's restrictions (none outside the campaign). */
+const rules = () => game?.puzzle.rules ?? {};
+
 function digitAction(c: number, d: number, asMaybe: boolean): void {
   if (!game || solvedAt) return;
+  if (rules().noMaybes) asMaybe = false;
   // Entering anything replaces a crossed-out (disproven) guess digit.
   board.disproven.delete(c);
   const justAdded = firstMaybe?.cell === c && firstMaybe.digit === d;
@@ -357,10 +366,10 @@ function startGame(res: GenResult, saved?: GameSnapshot): void {
       while (game.layer > 0) game.keepGuess();
     }
   }
-  hud.setDigits(res.puzzle.digits.labels);
+  hud.setDigits(res.puzzle.digits.labels, res.puzzle.rules?.digitsOnly);
   const m = res.puzzle.meta;
   hud.setMeta(m?.rating ?? '');
-  hud.say(saved ? 'Picked up where you left off.' : 'Tap a cell, then a digit. Tap the selected cell again to switch to maybes.');
+  hud.say(saved ? 'Picked up where you left off.' : res.puzzle.rules?.goal ? 'Find the number that goes in the gold cell.' : 'Tap a cell, then a digit. Tap the selected cell again to switch to maybes.');
   layout();
   sync();
   persist(true);
@@ -469,7 +478,8 @@ function requestPuzzle(o: GenOptions): void {
 }
 
 board.onCellTap = (c) => {
-  board.selected = c;
+  const r = rules();
+  board.selected = r.lockCursor && r.goal ? r.goal.cell : c;
   board.hintCells.clear();
   board.refresh();
   sync();
@@ -516,7 +526,7 @@ board.onDragStart = (c) => {
 };
 board.onDragDrop = ({ source, path, mode, lines, pair }) => {
   const none = { painted: [], skipped: [] };
-  if (!game || mode === 'none') return none;
+  if (!game || mode === 'none' || rules().noMaybes) return none;
   let painted: number[];
   let skipped: number[] = [];
   if (mode === 'pair' && pair) {
@@ -617,10 +627,7 @@ window.addEventListener('keydown', (e) => {
   else if (key === 'Backspace' || key === 'Delete' || key === 'Escape' || (plain && key === 'c')) clearCell(s);
   else if ((key === 'y' && (e.ctrlKey || e.metaKey)) || (key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) handlers.redo();
   else if ((key === 'z' && (e.ctrlKey || e.metaKey)) || (plain && key === 'u')) handlers.undo();
-  else if (plain && key === 'n') {
-    notesMode = !notesMode;
-    sync();
-  } else if (plain && key === 'g') handlers.guess();
+  else if (plain && key === 'n') handlers.toggleNotes(); else if (plain && key === 'g') handlers.guess();
   else if (plain && key === 'h') handlers.hint();
   // Q W E / A S D enter digits like the pad's layout; Shift makes it a maybe, as with number keys.
   else if (letterDigit >= 0) digitAction(s, letterDigit, notesMode !== e.shiftKey);

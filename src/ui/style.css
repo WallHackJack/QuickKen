@@ -211,3 +211,6 @@ dialog.newgame .campaign summary { cursor: pointer; font-weight: 700; color: var
 dialog.newgame .campaign .levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 10px; }
 dialog.newgame .campaign .levels button { text-align: left; }
 dialog.newgame .campaign .levels b { color: var(--accent); margin-right: 4px; }
+
+/* Campaign levels that allow only digits: no Undo/Clear beside the pad, no tools row. */
+#hud.digits-only .pad .act, #hud.digits-only .tools { display: none; }

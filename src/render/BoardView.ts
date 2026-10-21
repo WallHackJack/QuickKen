@@ -1459,6 +1459,11 @@ export class BoardView extends Container {
         v.highlight.rect(0, 0, cs, cs).fill({ color: 0x0b0d22, alpha: 0.45 });
         v.highlight.rect(0, 0, cs, cs).fill(this.maybeTarget ? { color: MAYBE, alpha: 0.1 } : { color: 0x9e1f30, alpha: 0.2 });
       }
+      if (g.puzzle.rules?.goal?.cell === c) {
+        // A campaign level's cell to solve: a gold ring.
+        const w = Math.max(2, cs * 0.06);
+        v.highlight.rect(w / 2 + cs * 0.04, w / 2 + cs * 0.04, cs - w - cs * 0.08, cs - w - cs * 0.08).stroke({ width: w, color: GUESS_COLOR, alpha: 0.9 });
+      }
       if (this.guessOrigin?.cell === c) {
         // The running guess's first digit: a dashed square just inside the cell edge (80% dash, solid corners).
         const w = Math.max(1.5, cs * 0.032), inset = w / 2 + cs * 0.025, side = cs - inset * 2;

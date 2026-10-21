@@ -17,7 +17,20 @@ export interface PuzzleDef {
   solution?: number[];
   /** Cells that aren't part of the board (odd shapes): in no cage, row or column. */
   holes?: number[];
+  /** Campaign restrictions. */
+  rules?: LevelRules;
   meta?: { seed?: string; difficulty?: number; rating?: string };
+}
+
+export interface LevelRules {
+  /** The one cell to solve: highlighted, and entering `digit` (a digit index) there wins. */
+  goal?: { cell: number; digit: number };
+  /** The cursor stays on the goal cell. */
+  lockCursor?: boolean;
+  /** No maybes: maybe mode, pad sweeps and maybe drags are off. */
+  noMaybes?: boolean;
+  /** Only the digit buttons are shown (no Undo, Clear, Guess, Check). */
+  digitsOnly?: boolean;
 }
 
 export interface House {
