@@ -1329,6 +1329,8 @@ export class BoardView extends Container {
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
+        // The halo follows the maybe colour: warm behind orange maybes, pale cyan otherwise.
+        glow.tint = this.maybeTarget ? MAYBE_LIGHT : GLOW_TINT;
       });
       // The selected cell's cage gets the soft highlight (not its row and column).
       const sameCage = g.topo.cageOf[c] === g.topo.cageOf[sel];
