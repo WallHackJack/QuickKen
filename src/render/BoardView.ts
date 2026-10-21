@@ -58,6 +58,8 @@ const CLAUDE_LIGHT = 0xffd9b8;
 const HIDDEN = 0xffc94f;
 /** A leftover that pins a single cell's digit (released, it's entered). */
 const CONFIRM = 0x8cff6b;
+/** The selected cell's cage ring: warm pale gold, unlike any cage or mode colour. */
+const SELECT_RING = 0xffe7a8;
 // Errors: clashes, wrong cages, chains broken by a mistake.
 const ERROR = 0xff4d6d;
 
@@ -264,8 +266,6 @@ export class CageView extends Container {
   resultText: Text;
   /** 0 = normal palette, 1 = maybe-mode palette (animated by BoardView). */
   mode = 0;
-  /** The selected cell is in this cage: thicker, brighter outline and a slightly bigger label. */
-  selected = false;
   /** Full and wrong (red outline, darker fill, red label) or full and right (subtle green border). */
   state: 'open' | 'ok' | 'wrong' = 'open';
   /** Resting colours: × and ÷ cages sit cooler than + and − ones so they read apart, in maybe mode too. */
@@ -312,13 +312,6 @@ export class CageView extends Container {
     this.resultText.visible = false;
   }
 
-  setSelected(on: boolean): void {
-    if (on === this.selected) return;
-    this.selected = on;
-    this.labelText.scale.set(on ? 1.15 : 1);
-    this.drawShape(0);
-  }
-
   /** Show the cage as open, complete, or wrong (with what it actually came to). */
   setState(state: 'open' | 'ok' | 'wrong', result: number | null): void {
     const wrong = state === 'wrong';
@@ -335,8 +328,7 @@ export class CageView extends Container {
     const cs = this.cs;
     this.fill.clear();
     this.outline.clear();
-    // The selected cell's cage draws a heavier outline, still inside its own cells.
-    const w = this.selected ? this.stroke * 2.1 : this.stroke;
+    const w = this.stroke;
     for (const loop of this.loops) {
       // Inset by half the stroke so neighbouring cages' outlines meet flush, with no gap.
       const pts = insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]);
@@ -348,7 +340,6 @@ export class CageView extends Container {
       } else if (this.state === 'ok') {
         edge = mix(mix(edge, 0x8cff6b, 0.75), CAGE.edgeGlow, glow);
       }
-      if (this.selected) edge = mix(edge, 0xffffff, 0.3);
       this.fill.poly(pts, true).fill({ color: fill, alpha: 0.88 });
       this.outline.poly(pts, true).stroke({ width: w, color: edge, alpha: 0.95, join: 'miter' });
     }
@@ -407,6 +398,10 @@ export class BoardView extends Container {
   private shakeAmount = 0;
   /** A long-press filling a × cage: a circle (clipped to the cage) growing from the finger. */
   private hold: { ci: number; layer: Container; circle: Graphics; x: number; y: number; reach: number; ms: number } | null = null;
+  /** The selected cell's cage ring: one fading in, older ones fading out. Drawn over the cages. */
+  private selLayer = new Graphics();
+  private selRings: { ci: number; t: number; out: boolean }[] = [];
+  private selCage = -1;
   /** Whole-board scale for the finish bump (around the board's centre). */
   private bump = 1;
   private home = { x: 0, y: 0 };
@@ -1214,7 +1209,10 @@ export class BoardView extends Container {
     this.sumPill.visible = false;
     this.ghostLabels = new Container();
     this.ghostKey = '';
-    this.addChild(this.dragLayer, this.ghostLabels, this.particles.container, this.sumPill);
+    this.selLayer = new Graphics();
+    this.selRings = [];
+    this.selCage = -1;
+    this.addChild(this.selLayer, this.dragLayer, this.ghostLabels, this.particles.container, this.sumPill);
 
     this.refresh();
   }
@@ -1240,7 +1238,7 @@ export class BoardView extends Container {
     for (const cv of this.cageViews) {
       if (cv.destroyed) continue;
       const shown = g.puzzle.cages[cv.index].cells.every((c) => !hidden.has(c));
-      cv.setSelected(cv.index === g.topo.cageOf[this.selected]);
+      if (cv.index === g.topo.cageOf[this.selected]) this.selectCage(cv.index);
       const status = shown ? g.cageStatus(cv.index) : 'open';
       cv.setState(status, status === 'wrong' ? g.cageResult(cv.index) : null);
     }
@@ -1734,8 +1732,47 @@ export class BoardView extends Container {
     this.onCageHold?.(h.ci);
   }
 
+  /** The selection moved into cage `ci`: its ring fades in (with a small light and droplet), the old one out. */
+  private selectCage(ci: number): void {
+    if (ci === this.selCage) return;
+    this.selCage = ci;
+    for (const r of this.selRings) r.out = true;
+    this.selRings.push({ ci, t: 0, out: false });
+    const cv = this.cageViews[ci];
+    if (!cv) return;
+    // A small light and droplet: gentler than any other effect.
+    this.flashLight(this.loopSegments(cv.loops, -this.cs * 0.06), SELECT_RING, 380, this.cs * 0.22, 0.35);
+    this.ripple(cv.loops, 0.28, `select${ci}`, SELECT_RING);
+  }
+
+  /** Animate and draw the selection rings: thickness and opacity ease in (or out) together. */
+  private drawSelection(dtMs: number): void {
+    const g = this.selLayer;
+    if (g.destroyed) return;
+    const RING_MS = 180;
+    for (const r of this.selRings) r.t = Math.min(1, r.t + dtMs / RING_MS);
+    this.selRings = this.selRings.filter((r) => !(r.out && r.t >= 1));
+    g.clear();
+    const cs = this.cs;
+    const w = Math.max(2, cs * 0.05);
+    for (const r of this.selRings) {
+      const cv = this.cageViews[r.ci];
+      if (!cv) continue;
+      const k = r.out ? 1 - ease.outCubic(r.t) : ease.outCubic(r.t);
+      if (k <= 0.01) continue;
+      // Grows outward from the cage edge: a thin dark rim outside a pale-gold line.
+      const line = w * (0.4 + 0.6 * k);
+      for (const loop of cv.loops) {
+        const at = (d: number) => insetLoop(loop, -d / cs).flatMap(([x, y]) => [x * cs, y * cs]);
+        g.poly(at(line * 0.5), true).stroke({ width: line, color: SELECT_RING, alpha: 0.95 * k, join: 'miter' });
+        g.poly(at(line + w * 0.25), true).stroke({ width: Math.max(1, w * 0.45), color: 0x05060f, alpha: 0.7 * k, join: 'miter' });
+      }
+    }
+  }
+
   update(dt: number): void {
     this.tickHold(dt * 1000);
+    this.drawSelection(dt * 1000);
     this.lighting?.update(dt * 1000);
     if (this.maybeMix !== this.maybeTarget) {
       const step = dt * 6;
