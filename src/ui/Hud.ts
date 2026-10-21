@@ -292,7 +292,7 @@ export class Hud {
           <p class="note">The same seed always makes the same puzzle.</p>
         </fieldset>
       </div>
-      <div class="row foot"><button data-k="cancel">Cancel</button><button data-k="go" class="on">Generate</button></div>`;
+      <div class="row foot"><button data-k="reset" class="reset">Reset</button><button data-k="cancel" class="cancel">Cancel</button><button data-k="go" class="generate">Generate</button></div>`;
     const val = (name: string) => ((d.querySelector(`[name=${name}]:checked`) ?? d.querySelector(`[name=${name}]`)) as HTMLInputElement).value.trim();
     // "Custom" in Digits opens the box for your own digits right under the row.
     const customBox = d.querySelector<HTMLElement>('.custom-digits')!;
@@ -302,7 +302,33 @@ export class Hud {
         if (!customBox.hidden) customBox.querySelector('input')!.focus();
       };
     });
+    // Your last choices come back next time (saved on Generate); Reset restores the defaults.
+    const KEY = 'quickken.newgame';
+    const DEFAULTS = { size: '6', rating: 'Medium', preset: 'standard', custom: '', ops: ['add', 'sub', 'mul', 'div'] };
+    const apply = (c: typeof DEFAULTS) => {
+      for (const name of ['size', 'rating', 'preset'] as const) {
+        d.querySelectorAll<HTMLInputElement>(`[name=${name}]`).forEach((r) => (r.checked = r.value === c[name]));
+      }
+      d.querySelectorAll<HTMLInputElement>('[name=ops]').forEach((b) => (b.checked = c.ops.includes(b.value)));
+      d.querySelector<HTMLInputElement>('[name=custom]')!.value = c.custom;
+      d.querySelector<HTMLInputElement>('[name=seed]')!.value = '';
+      customBox.hidden = c.preset !== 'custom';
+    };
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<typeof DEFAULTS> | null;
+      if (saved) apply({ ...DEFAULTS, ...saved });
+    } catch {
+      // Nothing saved (or storage blocked): the defaults stand.
+    }
     const submit = () => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify({
+          size: val('size'), rating: val('rating'), preset: val('preset'), custom: val('custom'),
+          ops: [...d.querySelectorAll<HTMLInputElement>('[name=ops]:checked')].map((b) => b.value),
+        }));
+      } catch {
+        // Not remembered this time; the puzzle is still made.
+      }
       let digits: DigitSet;
       let size = Number(val('size'));
       try {
@@ -331,6 +357,14 @@ export class Hud {
     };
     d.querySelector<HTMLButtonElement>('[data-k=go]')!.onclick = () => submit();
     d.querySelector<HTMLButtonElement>('[data-k=cancel]')!.onclick = () => d.close();
+    d.querySelector<HTMLButtonElement>('[data-k=reset]')!.onclick = () => {
+      apply(DEFAULTS);
+      try {
+        localStorage.removeItem(KEY);
+      } catch {
+        // Storage blocked: the dialog is reset anyway.
+      }
+    };
     return d;
   }
 

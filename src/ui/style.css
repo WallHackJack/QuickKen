@@ -188,6 +188,9 @@ dialog.newgame { width: min(540px, calc(100vw - 24px)); max-height: calc(100dvh 
 dialog.newgame[open] { display: flex; flex-direction: column; }
 dialog.newgame .body { overflow-y: auto; min-height: 0; flex: 1; padding-right: 2px; }
 dialog.newgame .foot { flex: none; margin-top: 12px; }
+dialog.newgame .foot .reset { margin-right: auto; }
+dialog.newgame .foot .cancel { color: #ff8a9a; border-color: rgba(255, 77, 109, 0.6); background: rgba(255, 77, 109, 0.12); }
+dialog.newgame .foot .generate { color: #0b1a08; border-color: #8cff6b; background: #8cff6b; font-weight: 800; }
 dialog.newgame .segmented.five { grid-template-columns: repeat(5, 1fr); }
 dialog.newgame .segmented.four { grid-template-columns: repeat(4, 1fr); }
 dialog.newgame .segmented .fiendish span { color: #ff6b7d; }
