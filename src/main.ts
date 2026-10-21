@@ -13,6 +13,7 @@ import { BoardView, LAYER_COLORS, type DragResult } from './render/BoardView';
 import { Lighting } from './render/Lighting';
 import { Particles } from './render/Particles';
 import { Tweens } from './render/Tweens';
+import { LEVELS } from './game/campaign';
 import { Hud, type HudHandlers } from './ui/Hud';
 import { digitLetters } from './ui/keys';
 
@@ -169,6 +170,10 @@ const handlers: HudHandlers = {
     board.refresh();
   },
   newGame: (o) => requestPuzzle(o),
+  playLevel: (i) => {
+    const level = LEVELS[i];
+    if (level) startGame({ puzzle: structuredClone(level.puzzle), attempts: 0 });
+  },
   optionsChanged: (o) => {
     options = o;
     saveOptions(o);
@@ -325,15 +330,19 @@ function layout(): void {
   if (!game) return;
   const w = app.screen.width, h = app.screen.height;
   const top = 56; // room for the top bar and combo text
-  const size = Math.max(120, Math.min(w - 40, h - top - 24));
-  board.build(game, size, (w - size) / 2, top + (h - top - size) / 2);
+  // An odd-shaped board is centred on the rows it uses (its cells start at the top-left).
+  const cells = game.topo.cageOf.flatMap((ci, c) => (ci >= 0 ? [c] : []));
+  const rows = Math.max(...cells.map((c) => Math.floor(c / game!.n))) + 1, cols = Math.max(...cells.map((c) => c % game!.n)) + 1;
+  const size = Math.max(120, Math.min((w - 40) * game.n / cols, (h - top - 24) * game.n / rows));
+  const used = { w: size * cols / game.n, h: size * rows / game.n };
+  board.build(game, size, (w - used.w) / 2, top + (h - top - used.h) / 2);
   bg.resize(w, h);
 }
 
 function startGame(res: GenResult, saved?: GameSnapshot): void {
   game = new Game(res.puzzle);
   applyOptions();
-  board.selected = 0;
+  board.selected = game.topo.cageOf.findIndex((ci) => ci >= 0);
   solvedAt = null;
   startTime = performance.now();
   if (saved) {
@@ -589,7 +598,13 @@ window.addEventListener('keydown', (e) => {
   if (!game || document.querySelector('dialog[open]')) return;
   const n = game.n;
   const s = board.selected;
-  const move = (dr: number, dc: number) => board.onCellTap!(((Math.floor(s / n) + dr + n) % n) * n + ((s % n) + dc + n) % n);
+  const move = (dr: number, dc: number) => {
+    // Step over holes to the next cell of the board in that direction.
+    let c = s;
+    do c = ((Math.floor(c / n) + dr + n) % n) * n + ((c % n) + dc + n) % n;
+    while (game!.topo.cageOf[c] < 0 && c !== s);
+    board.onCellTap!(c);
+  };
   // Letters compare lower-cased so Caps Lock (and Shift) don't break shortcuts.
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   // Plain letter shortcuts never fire with Ctrl/Cmd/Alt held (so Ctrl+C still copies).
@@ -707,15 +722,6 @@ app.ticker.add((tk) => {
   if (game && !solvedAt) hud.setTime((performance.now() - startTime) / 1000);
 });
 
-let fpsTimer = 0;
-app.ticker.add((tk) => {
-  fpsTimer += tk.deltaMS;
-  if (fpsTimer > 500) {
-    fpsTimer = 0;
-    hud.fpsEl.textContent = `${Math.round(app.ticker.FPS)} fps · ${particles.count} particles`;
-  }
-});
-
 bg.resize(app.screen.width, app.screen.height);
 // Boot: resume the saved game when the published page has a database, else start a fresh puzzle.
 hud.say('Loading…');
@@ -727,7 +733,6 @@ void (async () => {
   if (!link) void navigator.storage?.persist?.().catch(() => false);
   if (saved) startGame({ puzzle: saved.puzzle, attempts: 0 }, saved);
   else requestPuzzle({ size: 6, digits: DIGIT_PRESETS.standard(6), seed: Math.random().toString(36).slice(2) });
-  hud.setLinked(!!link);
   link?.listen(applyRemote);
 })();
 

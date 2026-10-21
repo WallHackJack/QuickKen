@@ -15,6 +15,8 @@ export interface PuzzleDef {
   extraHouses?: number[][];
   /** Digit index per cell. */
   solution?: number[];
+  /** Cells that aren't part of the board (odd shapes): in no cage, row or column. */
+  holes?: number[];
   meta?: { seed?: string; difficulty?: number; rating?: string };
 }
 
@@ -44,8 +46,14 @@ export function buildTopology(p: PuzzleDef): Topology {
   if (p.digits.values.length !== n) throw new Error(`Need ${n} digits, got ${p.digits.values.length}`);
   const cellCount = n * n;
   const houses: House[] = [];
-  for (let r = 0; r < n; r++) houses.push({ cells: Array.from({ length: n }, (_, c) => r * n + c), complete: true, name: `row ${r + 1}` });
-  for (let c = 0; c < n; c++) houses.push({ cells: Array.from({ length: n }, (_, r) => r * n + c), complete: true, name: `column ${c + 1}` });
+  // Holes leave rows and columns short; a short line only needs its digits to differ.
+  const holes = new Set(p.holes ?? []);
+  const line = (cells: number[], name: string) => {
+    const kept = cells.filter((c) => !holes.has(c));
+    if (kept.length) houses.push({ cells: kept, complete: kept.length === n, name });
+  };
+  for (let r = 0; r < n; r++) line(Array.from({ length: n }, (_, c) => r * n + c), `row ${r + 1}`);
+  for (let c = 0; c < n; c++) line(Array.from({ length: n }, (_, r) => r * n + c), `column ${c + 1}`);
   for (const [i, h] of (p.extraHouses ?? []).entries()) houses.push({ cells: h, complete: h.length === n, name: `region ${i + 1}` });
 
   const cellHouses: number[][] = Array.from({ length: cellCount }, () => []);
@@ -68,7 +76,7 @@ export function buildTopology(p: PuzzleDef): Topology {
       cageOf[c] = ci;
     }
   });
-  if (cageOf.includes(-1)) throw new Error('Every cell must be in a cage');
+  if (cageOf.some((ci, c) => (ci === -1) !== holes.has(c))) throw new Error('Every cell must be in a cage (or a hole)');
 
   const peerSets = peers.map((ps) => new Set(ps));
   const cageConflicts = p.cages.map((cage) => {

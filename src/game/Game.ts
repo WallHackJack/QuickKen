@@ -325,7 +325,7 @@ export class Game {
 
   /** Fill every empty cell's maybes with all digits not already used by its peers. */
   fillAllNotes(): ActionResult {
-    return this.fillNotes([...this.values.keys()]);
+    return this.fillNotes([...this.values.keys()].filter((c) => this.topo.cageOf[c] >= 0));
   }
 
   /**
@@ -813,7 +813,7 @@ export class Game {
   }
 
   isSolved(): boolean {
-    if (this.values.includes(EMPTY)) return false;
+    if (this.values.some((v, c) => v === EMPTY && this.topo.cageOf[c] >= 0)) return false;
     if (this.puzzle.solution) return this.puzzle.solution.every((d, c) => this.values[c] === d);
     return this.conflicts().size === 0;
   }

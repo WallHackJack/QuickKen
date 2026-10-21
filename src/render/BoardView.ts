@@ -504,7 +504,8 @@ export class BoardView extends Container {
   private cellAt(x: number, y: number): number {
     const n = this.game?.n ?? 0;
     const c = Math.floor(x / this.cs), r = Math.floor(y / this.cs);
-    return r < 0 || c < 0 || r >= n || c >= n ? -1 : r * n + c;
+    // Holes (cells that aren't part of the board) can't be touched.
+    return r < 0 || c < 0 || r >= n || c >= n || this.game.topo.cageOf[r * n + c] < 0 ? -1 : r * n + c;
   }
 
   // ---------- maybe drag (copy / line fill) ----------
@@ -666,7 +667,10 @@ export class BoardView extends Container {
     let lineCount = 0;
     for (const byRow of options) {
       const lines = [...new Set(region.map((c) => (byRow ? Math.floor(c / n) : c % n)))];
-      const cells = lines.flatMap((i) => Array.from({ length: n }, (_, j) => (byRow ? i * n + j : j * n + i))).filter((c) => !set.has(c));
+      const band = lines.flatMap((i) => Array.from({ length: n }, (_, j) => (byRow ? i * n + j : j * n + i)));
+      // A line with holes doesn't hold every digit, so its total isn't known.
+      if (band.some((c) => cageOf[c] < 0)) continue;
+      const cells = band.filter((c) => !set.has(c));
       if (cells.length < 1 || (hidden && hidden.cells.length <= cells.length)) continue;
       // Products: what the whole lines multiply to, divided by the selection (only when that's exact).
       const target = product ? (total !== 0 ? lineSum ** lines.length / total : NaN) : lines.length * lineSum - total;
@@ -1294,7 +1298,13 @@ export class BoardView extends Container {
     this.position.set(x, y);
     this.hitArea = new Rectangle(0, 0, size, size);
 
-    this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.38 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
+    if (game.puzzle.holes?.length) {
+      // An odd-shaped board: the frame follows its cells.
+      this.frame = new Graphics();
+      const cells = game.topo.cageOf.flatMap((ci, c) => (ci >= 0 ? [c] : []));
+      for (const loop of cageLoops(cells, game.n)) this.frame.poly(insetLoop(loop, -0.12).flatMap(([x, y]) => [x * cs, y * cs]), true);
+      this.frame.fill({ color: 0x070814, alpha: 0.38 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35, join: 'round' });
+    } else this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.38 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
     this.frame.tint = 0xffffff;
     this.addChild(this.frame);
 
@@ -1391,6 +1401,7 @@ export class BoardView extends Container {
     const recent = g.lastChanges();
     for (let c = 0; c < this.cellViews.length; c++) {
       const v = this.cellViews[c];
+      if (!v) continue;
       const ch = hidden.has(c) ? undefined : recent.get(c);
       const val = g.values[c];
       // Givens (single-cell cages, locked) look like any completed cage.

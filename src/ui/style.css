@@ -204,3 +204,10 @@ dialog.newgame .segmented span { font-size: 14px; }
 dialog.newgame .more { margin: 16px 0 4px; padding: 4px 12px 8px; border: 1px solid var(--line); border-radius: 12px; }
 dialog.newgame .more legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
 dialog.newgame .more h3:first-of-type { margin-top: 6px; }
+
+/* Campaign levels (New → Campaign). */
+dialog.newgame .campaign { margin: 0 0 6px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
+dialog.newgame .campaign summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+dialog.newgame .campaign .levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 10px; }
+dialog.newgame .campaign .levels button { text-align: left; }
+dialog.newgame .campaign .levels b { color: var(--accent); margin-right: 4px; }

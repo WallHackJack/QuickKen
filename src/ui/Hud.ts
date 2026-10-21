@@ -6,6 +6,7 @@ import type { Rating } from '../engine/logic';
 import { DEFAULT_OPTIONS, type Options } from '../game/options';
 import { LAYER_COLORS, noteColumns } from '../render/BoardView';
 import { digitLetters } from './keys';
+import { LEVELS } from '../game/campaign';
 
 export interface HudHandlers {
   digit(d: number): void;
@@ -19,6 +20,8 @@ export interface HudHandlers {
   hint(): void;
   check(): void;
   newGame(o: GenOptions): void;
+  /** Start a campaign level (index into LEVELS). */
+  playLevel(i: number): void;
   toggleNotes(): void;
   /** A finger is sweeping the digit pad: these digits (so far) become maybes in the selected cell now. */
   sweepStep(digits: number[]): void;
@@ -53,17 +56,15 @@ export class Hud {
   private layer = 0;
   private meta: HTMLElement;
   private timerEl: HTMLElement;
-  readonly fpsEl: HTMLElement;
 
   constructor(root: HTMLElement, stage: HTMLElement, private h: HudHandlers) {
     this.el = root;
     const top = document.createElement('div');
     top.className = 'topbar';
-    top.innerHTML = `<button class="title" data-k="options" aria-label="Options">QUICKKEN</button><span class="meta"></span><span class="spacer"></span><span class="link" hidden title="Claude can see this board and make moves">● Claude</span><span class="fps"></span><span class="timer">0:00</span><button data-k="new">New</button>`;
+    top.innerHTML = `<button class="title" data-k="options" aria-label="Options">QUICKKEN</button><span class="meta"></span><span class="spacer"></span><span class="timer">0:00</span><button data-k="new">New</button>`;
     stage.appendChild(top);
     this.meta = top.querySelector('.meta')!;
     this.timerEl = top.querySelector('.timer')!;
-    this.fpsEl = top.querySelector('.fps')!;
     top.querySelector<HTMLButtonElement>('[data-k=new]')!.onclick = () => this.dialog.showModal();
     top.querySelector<HTMLButtonElement>('[data-k=options]')!.onclick = () => this.optionsDialog.showModal();
 
@@ -277,6 +278,10 @@ export class Hud {
     d.innerHTML = `
       <div class="body">
         <h2>New puzzle</h2>
+        <details class="campaign">
+          <summary>Campaign</summary>
+          <div class="levels">${LEVELS.map((l, i) => `<button data-level="${i}"><b>${i + 1}</b> ${l.name}</button>`).join('')}</div>
+        </details>
         <h3>Size</h3>
         ${choices('size', [4, 5, 6, 7, 8, 9].map((n) => [String(n), n === 6 ? `${n}×${n} ★` : `${n}×${n}`]), ['6'], 'sizes')}
         <h3>Difficulty</h3>
@@ -356,6 +361,12 @@ export class Hud {
       d.close();
     };
     d.querySelector<HTMLButtonElement>('[data-k=go]')!.onclick = () => submit();
+    d.querySelectorAll<HTMLButtonElement>('[data-level]').forEach((b) => {
+      b.onclick = () => {
+        d.close();
+        this.h.playLevel(Number(b.dataset.level));
+      };
+    });
     d.querySelector<HTMLButtonElement>('[data-k=cancel]')!.onclick = () => d.close();
     d.querySelector<HTMLButtonElement>('[data-k=reset]')!.onclick = () => {
       apply(DEFAULTS);
@@ -442,11 +453,6 @@ export class Hud {
     };
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', end);
-  }
-
-  /** Show the "● Claude" badge while the live link is up. */
-  setLinked(on: boolean): void {
-    this.el.ownerDocument.querySelector<HTMLElement>('.topbar .link')!.hidden = !on;
   }
 
   setMeta(text: string): void {
