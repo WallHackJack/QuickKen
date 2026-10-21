@@ -23,6 +23,8 @@ export interface LightSpec {
   /** Board-local segments [x1, y1, x2, y2]. */
   segments: number[][];
   color: number;
+  /** A colour that changes over time (overrides color). */
+  colorAt?(): number;
   /** Brightness at progress t (0..1). */
   level(t: number): number;
   /** Distance (px) at which the light has fallen to half. */
@@ -221,7 +223,8 @@ export class Lighting {
       const t = Math.min(1, s.elapsed / s.duration);
       const level = s.level(t);
       if (src < MAX_SRC && level > 0.001) {
-        const rgb = [(s.color >> 16) / 255, ((s.color >> 8) & 255) / 255, (s.color & 255) / 255];
+        const col = s.colorAt?.() ?? s.color;
+        const rgb = [(col >> 16) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
         const segs: number[][] = [];
         for (const [x1, y1, x2, y2] of fitSegments(s.segmentsAt ? s.segmentsAt(t) : s.segments)) {
           const a = this.space.toGlobal({ x: x1, y: y1 }), b = this.space.toGlobal({ x: x2, y: y2 });

@@ -1898,6 +1898,8 @@ export class BoardView extends Container {
     const color = mix(SELECT_RING, MAYBE, this.maybeTarget);
     this.lighting?.add({
       segments: this.loopSegments(cv.loops, -this.cs * 0.06), color, radius: this.cs * 0.52,
+      // Follows maybe mode on and off while the cage stays selected.
+      colorAt: () => mix(SELECT_RING, MAYBE, this.maybeMix),
       level: () => {
         const t = performance.now();
         const on = Math.min(1, (t - life.born) / 60);
