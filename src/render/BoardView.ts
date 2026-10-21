@@ -1825,7 +1825,8 @@ export class BoardView extends Container {
   celebrate(from: number): void {
     const origin = this.cellCenter(from ?? 0);
     const n = this.game.n;
-    const edge: [number, number][][] = [[[0, 0], [n, 0], [n, n], [0, n]]];
+    // Around the board as it is: an odd-shaped one by its outline.
+    const edge: [number, number][][] = this.game.puzzle.holes?.length ? cageLoops(this.game.topo.cageOf.flatMap((ci, c) => (ci >= 0 ? [c] : [])), n) : [[[0, 0], [n, 0], [n, n], [0, n]]];
     this.flashLight(this.loopSegments(edge, 0), 0xffd36b, 1400, this.cs * 0.9, 1.2);
     // One ripple for the finish, around the whole puzzle (the last move's own ripples are dropped).
     this.bg.ripples.dropNew();

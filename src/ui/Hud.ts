@@ -379,6 +379,28 @@ export class Hud {
     return d;
   }
 
+  /** Ask a yes/no question in a small dialog (Yes resolves true). */
+  ask(question: string, yes = 'Yes', no = 'Cancel'): Promise<boolean> {
+    const d = document.createElement('dialog');
+    d.className = 'ask';
+    d.innerHTML = `<h2></h2><div class="row"><button data-a="no" class="no"></button><button data-a="yes" class="yes"></button></div>`;
+    d.querySelector('h2')!.textContent = question;
+    d.querySelector('.no')!.textContent = no;
+    d.querySelector('.yes')!.textContent = yes;
+    document.body.appendChild(d);
+    d.showModal();
+    return new Promise((done) => {
+      const close = (v: boolean) => {
+        d.close();
+        d.remove();
+        done(v);
+      };
+      d.querySelector<HTMLButtonElement>('.yes')!.onclick = () => close(true);
+      d.querySelector<HTMLButtonElement>('.no')!.onclick = () => close(false);
+      d.oncancel = () => close(false);
+    });
+  }
+
   /** With `digitsOnly` (campaign levels) the other buttons are hidden and the digits sit to the right. */
   setDigits(labels: string[], digitsOnly = false): void {
     this.el.classList.toggle('digits-only', digitsOnly);
