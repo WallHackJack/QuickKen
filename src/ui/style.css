@@ -193,6 +193,7 @@ dialog.newgame .segmented.four { grid-template-columns: repeat(4, 1fr); }
 dialog.newgame .segmented .fiendish span { color: #ff6b7d; }
 dialog.newgame .segmented .fiendish input:checked + span { color: #ff6b7d; border-color: #ff6b7d; background: rgba(255, 77, 109, 0.18); }
 dialog.newgame .custom-digits { margin-top: 8px; }
+dialog.newgame .more > label:not(.custom-digits) { margin-top: 14px; }
 dialog.newgame h3 { margin: 14px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 dialog.newgame h2 + h3 { margin-top: 0; }
 dialog.newgame .segmented.sizes { grid-template-columns: repeat(6, 1fr); }

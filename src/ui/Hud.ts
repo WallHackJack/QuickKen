@@ -27,12 +27,12 @@ export interface HudHandlers {
   optionsChanged(o: Options): void;
 }
 
-/** The operators a new puzzle can use: the four basics show just their symbol, the rest name + symbol. */
+/** The operators a new puzzle can use, each button showing name + symbol. */
 const OPS = [
-  { id: 'add', label: '+', weight: 4 },
-  { id: 'sub', label: '−', weight: 2 },
-  { id: 'mul', label: '×', weight: 3 },
-  { id: 'div', label: '÷', weight: 2 },
+  { id: 'add', label: 'Add +', weight: 4 },
+  { id: 'sub', label: 'Sub −', weight: 2 },
+  { id: 'mul', label: 'Mult ×', weight: 3 },
+  { id: 'div', label: 'Div ÷', weight: 2 },
   { id: 'max', label: 'Max ↑', weight: 1.5 },
   { id: 'min', label: 'Min ↓', weight: 1.5 },
   { id: 'range', label: 'Range Δ', weight: 1 },
@@ -273,7 +273,7 @@ export class Hud {
     // A row of buttons (radio or checkbox inputs styled as a segmented control).
     const choices = (name: string, items: [string, string, string?][], picked: string[], cls = '', type = 'radio') =>
       `<div class="segmented ${cls}">${items.map(([v, label, extra]) => `<label class="${extra ?? ''}"><input type="${type}" name="${name}" value="${v}" ${picked.includes(v) ? 'checked' : ''} /><span>${label}</span></label>`).join('')}</div>`;
-    const presetNames: Record<string, string> = { standard: '1 – n', zeroBased: '0 – n', evens: 'Evens', odds: 'Odds', centered: 'Centered', primes: 'Primes', tens: 'Tens' };
+    const presetNames: Record<string, string> = { standard: '1 – n ★', zeroBased: '0 – n', evens: 'Evens', odds: 'Odds', centered: 'Centered', primes: 'Primes', tens: 'Tens' };
     d.innerHTML = `
       <div class="body">
         <h2>New puzzle</h2>
