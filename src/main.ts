@@ -571,6 +571,17 @@ app.renderer.on('resize', layout);
 // The HUD changes the stage's height after init (and on rotation), so watch the element itself.
 new ResizeObserver(() => app.resize()).observe(stageEl);
 
+// Mouse side buttons (4 = back, 5 = forward) do nothing here: they don't tap the board or pad, and
+// don't navigate away from the game. Caught first (capture on window) so nothing else sees them.
+for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'auxclick'] as const) {
+  window.addEventListener(type, (e) => {
+    if (e.button === 3 || e.button === 4) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, { capture: true });
+}
+
 // ---------- error reporting ----------
 // Errors show in the message pane (tap to copy) so they can be pasted back to Claude. Each distinct
 // message is reported once.
