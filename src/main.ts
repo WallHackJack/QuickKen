@@ -43,6 +43,8 @@ board.lighting = new Lighting(scene, board, app.canvas, hudEl, bg.ripples);
 
 let game: Game | null = null;
 let notesMode = false;
+/** The previous input put this digit in as the cell's first maybe (pressing it again makes it the number). */
+let firstMaybe: { cell: number; digit: number } | null = null;
 /** The cell a digit-pad sweep is filling, its maybes before the sweep, and whether a step is applied. */
 let sweepBase: { cell: number; notes: number; applied: boolean } | null = null;
 let startTime = performance.now();
@@ -210,10 +212,14 @@ function digitAction(c: number, d: number, asMaybe: boolean): void {
   if (!game || solvedAt) return;
   // Entering anything replaces a crossed-out (disproven) guess digit.
   board.disproven.delete(c);
+  const justAdded = firstMaybe?.cell === c && firstMaybe.digit === d;
+  firstMaybe = null;
   if (game.values[c] === d) {
     notesMode = true;
     noteAction(c, d);
-  } else if (game.values[c] === EMPTY && game.notes[c] === 1 << d) {
+  } else if (game.values[c] === EMPTY && game.notes[c] === 1 << d && (justAdded || !asMaybe)) {
+    // A cell's only maybe becomes the number when typed as a number, or when it was the maybe just
+    // put in as the cell's first. Otherwise (maybe mode) pressing it again just removes it.
     notesMode = false;
     apply(game.setValue(c, d));
   } else if (asMaybe) noteAction(c, d);
@@ -226,8 +232,10 @@ function noteAction(c: number, d: number): void {
   const was = game.values[c];
   const ink = LAYER_COLORS[Math.min(game.layers[c], LAYER_COLORS.length - 1)];
   const had = was === EMPTY && game.notes[c] & (1 << d);
+  const first = was === EMPTY && game.notes[c] === 0;
   const r = game.toggleNote(c, d);
   apply(r);
+  if (first && game.notes[c] === 1 << d) firstMaybe = { cell: c, digit: d };
   if (had && !(game.notes[c] & (1 << d))) board.dustNote(c, d);
   if (was !== EMPTY) {
     board.valueToMaybes(c, game.puzzle.digits.labels[was], ink);
@@ -251,6 +259,7 @@ function clearCell(c: number): void {
 
 function apply(r: ActionResult): void {
   if (!game) return;
+  firstMaybe = null;
   board.hintCells.clear();
   board.errorCells.clear();
   board.play(r);
@@ -269,6 +278,7 @@ function apply(r: ActionResult): void {
 }
 
 function after(_changed: number[]): void {
+  firstMaybe = null;
   board.hintCells.clear();
   board.errorCells.clear();
   board.refresh();

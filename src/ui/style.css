@@ -7,9 +7,9 @@
   --accent: #4fd8ff;
   --guess: #4fd8ff;
   --warn: #ffc94f;
-  --maybe: #c49bff;
-  --maybe-bg: rgba(196, 155, 255, 0.16);
-  --maybe-line: rgba(196, 155, 255, 0.5);
+  --maybe: #ff9a4d;
+  --maybe-bg: rgba(255, 154, 77, 0.16);
+  --maybe-line: rgba(255, 154, 77, 0.5);
   color-scheme: dark;
 }
 
@@ -104,10 +104,10 @@ button.on { background: rgba(79, 216, 255, 0.22); border-color: var(--accent); }
 .pad .act { font-size: 18px; }
 /* Digits a finger is sweeping across (they become maybes on release). */
 .pad button.pressed { transform: scale(0.95); filter: brightness(1.35); }
-.pad button.swept { color: #fff; background: rgba(196, 155, 255, 0.45); border-color: var(--maybe); }
+.pad button.swept { color: #fff; background: rgba(255, 154, 77, 0.45); border-color: var(--maybe); }
 .pad { touch-action: none; }
 .pad.notes button:not(.act) { color: var(--maybe); background: var(--maybe-bg); border-color: var(--maybe-line); }
-.pad.notes button.has:not(.act) { color: #fff; background: rgba(196, 155, 255, 0.4); border-color: var(--maybe); }
+.pad.notes button.has:not(.act) { color: #fff; background: rgba(255, 154, 77, 0.4); border-color: var(--maybe); }
 
 /* Undo: holding fills the button left→right; once full it redoes (and keeps redoing while held). */
 button[data-k=undo] { position: relative; overflow: hidden; isolation: isolate; touch-action: none; -webkit-touch-callout: none; }

@@ -39,8 +39,9 @@ interface PlayingChain {
   cancelled: boolean;
 }
 // Maybe-mode violet (matches --maybe in style.css).
-const MAYBE = 0xc49bff;
-const MAYBE_LIGHT = 0xeadcff;
+// Maybe mode is warm orange, well apart from normal mode's blues.
+const MAYBE = 0xff9a4d;
+const MAYBE_LIGHT = 0xffd9b5;
 
 /** Columns in the maybe grid inside a cell; the digit pad uses the same layout. */
 export const noteColumns = (digits: number): number => (digits <= 4 ? 2 : digits <= 9 ? 3 : 4);
@@ -129,7 +130,7 @@ interface DragState {
 
 // One cage palette for now; `glow` lerps towards the bright pair during completion flashes,
 // and maybe mode shifts fill/edge towards violet.
-const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe6ecff, inner: 0xffffff, fillMaybe: 0x21173f, edgeMaybe: 0xb390ff };
+const CAGE = { fill: 0x141a3c, fillGlow: 0x2d3f8f, edge: 0x7f95ff, edgeGlow: 0xe6ecff, inner: 0xffffff, fillMaybe: 0x2b1609, edgeMaybe: 0xff9a4d };
 /** Label ink of a completed cage (its digits get a lighter green lean). */
 const COMPLETE_INK = 0xc8ffb8;
 
@@ -278,7 +279,7 @@ export class CageView extends Container {
     this.loops = cageLoops(cage.cells, n);
     this.stroke = Math.max(1.5, cs * 0.03);
     this.base = cage.op === 'mul' || cage.op === 'div'
-      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x1a1f4a, edgeMaybe: 0x8fa2ff }
+      ? { fill: 0x0c2640, edge: 0x4fc8f0, fillMaybe: 0x2a200a, edgeMaybe: 0xe8b04a }
       : { fill: CAGE.fill, edge: CAGE.edge, fillMaybe: CAGE.fillMaybe, edgeMaybe: CAGE.edgeMaybe };
     const cx = cage.cells.reduce((s, c) => s + (c % n) + 0.5, 0) / cage.cells.length;
     const cy = cage.cells.reduce((s, c) => s + Math.floor(c / n) + 0.5, 0) / cage.cells.length;
@@ -1164,7 +1165,7 @@ export class BoardView extends Container {
     this.hitArea = new Rectangle(0, 0, size, size);
 
     this.frame = new Graphics().roundRect(-cs * 0.12, -cs * 0.12, size + cs * 0.24, size + cs * 0.24, cs * 0.18).fill({ color: 0x070814, alpha: 0.72 }).stroke({ width: 2, color: 0x6f7cff, alpha: 0.35 });
-    this.frame.tint = mix(0xffffff, 0xe0c4ff, this.maybeMix);
+    this.frame.tint = mix(0xffffff, 0xffd2a8, this.maybeMix);
     this.addChild(this.frame);
 
     this.cageViews = game.puzzle.cages.map((_, ci) => {
@@ -1278,7 +1279,7 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 ? color : this.maybeTarget ? 0xffffff : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
@@ -1665,9 +1666,12 @@ export class BoardView extends Container {
     this.bg.energy += 1.2;
   }
 
-  /** Shift cages, board frame and background towards violet while maybe mode is on. */
+  /** Shift cages, board frame and background towards orange while maybe mode is on (maybes turn white). */
   setMaybeMode(on: boolean): void {
-    this.maybeTarget = on ? 1 : 0;
+    const target = on ? 1 : 0;
+    if (target === this.maybeTarget) return;
+    this.maybeTarget = target;
+    this.refresh();
   }
 
   /** Start a long-press on a × cage's cell: the fill circle grows from (x, y) inside the cage. */
@@ -1728,7 +1732,7 @@ export class BoardView extends Container {
         cv.mode = this.maybeMix;
         cv.drawShape(0);
       }
-      if (!this.frame.destroyed) this.frame.tint = mix(0xffffff, 0xe0c4ff, this.maybeMix);
+      if (!this.frame.destroyed) this.frame.tint = mix(0xffffff, 0xffd2a8, this.maybeMix);
       this.bg.maybe = this.maybeMix;
     }
     const d = this.drag;

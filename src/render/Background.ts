@@ -50,7 +50,7 @@ void main() {
   vec3 col = mix(deep, violet, smoothstep(0.35, 0.8, n));
   col = mix(col, teal, smoothstep(0.55, 0.95, q.x) * 0.6);
   // Maybe mode: lean the palette violet.
-  col = mix(col, col * vec3(1.25, 0.75, 1.45) + vec3(0.035, 0.0, 0.06), uMaybe);
+  col = mix(col, col * vec3(1.45, 0.95, 0.5) + vec3(0.06, 0.025, 0.0), uMaybe);
   col *= 0.85 + 0.35 * uEnergy;
   float vig = smoothstep(1.3, 0.3, length(vUV - 0.5) * 1.6);
   finalColor = vec4(col * vig, 1.0);
