@@ -72,6 +72,13 @@ const handlers: HudHandlers = {
   erase: () => clearCell(board.selected),
   undo: () => {
     if (!game) return;
+    // A guess whose very first move ran straight into a conflict is disproven: undoing that move drops
+    // the guess and crosses out its digit, the same as "Undo guess".
+    const [prev, last] = game.history.slice(-2);
+    if (game.layer > 0 && last?.kind === 'edit' && last.fx?.broken && prev?.kind === 'guess-start' && prev.layer === game.layer) {
+      handlers.drop();
+      return;
+    }
     // Undo while a chain is still playing stops it and rewinds what had been shown; otherwise the
     // move plays backwards. A crossed-out guess digit (left by undoing a guess) goes in the same step,
     // rewinding out with the move before it.
