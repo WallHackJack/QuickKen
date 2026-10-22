@@ -216,10 +216,11 @@ const handlers: HudHandlers = {
     if (!entry) return;
     const snap = structuredClone(entry.snap);
     if (!snap.solved) return startGame({ puzzle: snap.puzzle, attempts: 0 }, snap);
-    // A finished one: see it solved again, or play it from the start.
-    void hud.ask('You solved this one.', 'Show solved', 'Start fresh').then((show) => {
-      if (show === null) return;
-      startGame({ puzzle: snap.puzzle, attempts: 0 }, show ? snap : undefined);
+    // A finished one: play it from the start, watch the solve again, or just see it solved.
+    void hud.choose('You solved this one.', ['Start fresh', 'Replay', 'Show solved']).then((pick) => {
+      if (pick === null) return;
+      startGame({ puzzle: snap.puzzle, attempts: 0 }, pick === 0 ? undefined : snap);
+      if (pick === 1) replay();
     });
   },
   playLevel: (i) => {
@@ -440,6 +441,45 @@ function startGame(res: GenResult, saved?: GameSnapshot): void {
 // ---------- saving ----------
 // On claude.ai the game saves through the live link (shared with Claude). Anywhere else (GitHub Pages,
 // local dev) it saves to this browser's storage, so a reload picks up where you left off.
+// ---------- replay ----------
+// Rewind the board to its first move (no effects), then redo every move with its original effects,
+// chains and all. Any tap or key stops it, leaving the board wherever it got to.
+let replayTimer = 0;
+let replayTotal = 0;
+function replay(): void {
+  if (!game) return;
+  while (game.history.length) game.undo();
+  replayTotal = game.redoCount;
+  solvedAt = null;
+  board.setLocked(null);
+  board.refresh();
+  sync();
+  hud.say('Replaying your solve. Tap anywhere to stop.', 'hint');
+  replayTimer = window.setTimeout(replayStep, 700);
+}
+function replayStep(): void {
+  if (!game?.canRedo) {
+    replayTimer = 0;
+    return;
+  }
+  // Let a chain finish before the next move.
+  if (board.busy) {
+    replayTimer = window.setTimeout(replayStep, 120);
+    return;
+  }
+  handlers.redo();
+  hud.say(`Replay: move ${replayTotal - game.redoCount} of ${replayTotal}. Tap anywhere to stop.`, 'hint');
+  replayTimer = window.setTimeout(replayStep, 420);
+}
+function stopReplay(): void {
+  if (!replayTimer) return;
+  clearTimeout(replayTimer);
+  replayTimer = 0;
+  hud.say('Replay stopped. Redo carries on from here.');
+}
+window.addEventListener('pointerdown', stopReplay, true);
+window.addEventListener('keydown', stopReplay, true);
+
 const LOCAL_SAVE = 'quickken.save';
 const LOCAL_RECENT = 'quickken.recent';
 /** The last puzzles played (not campaign levels), newest first; updated with every save. */

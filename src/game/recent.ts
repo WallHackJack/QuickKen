@@ -1,5 +1,5 @@
-// The last few puzzles played (New → Recent), newest first. Each keeps its board as it was left (not
-// its undo history, which would make the list heavy).
+// The last few puzzles played (New → Recent), newest first. Each keeps its board as it was left and
+// its undo history (so a solved one can be replayed move by move).
 
 import type { PuzzleDef } from '../engine/puzzle';
 import type { GameSnapshot } from './Link';
@@ -22,6 +22,6 @@ export function puzzleKey(p: PuzzleDef): string {
 /** Put `snap` at the front (replacing its earlier entry), keeping at most RECENT_MAX. */
 export function remember(list: RecentEntry[], snap: GameSnapshot): RecentEntry[] {
   const key = puzzleKey(snap.puzzle);
-  const slim: GameSnapshot = { ...snap, history: undefined, view: '' };
+  const slim: GameSnapshot = { ...snap, view: '' };
   return [{ key, snap: slim }, ...list.filter((e) => e.key !== key)].slice(0, RECENT_MAX);
 }

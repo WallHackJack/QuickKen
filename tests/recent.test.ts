@@ -10,12 +10,12 @@ const snapOf = (target: number): GameSnapshot => {
 };
 
 describe('recent', () => {
-  it('keeps the newest first, one entry per puzzle, at most RECENT_MAX, without undo history', () => {
+  it('keeps the newest first, one entry per puzzle, at most RECENT_MAX, with its undo history', () => {
     let list = remember([], snapOf(1));
     list = remember(list, snapOf(2));
     list = remember(list, snapOf(1));
     expect(list.map((e) => e.snap.puzzle.cages[0].target)).toEqual([1, 2]);
-    expect(list[0].snap.history).toBeUndefined();
+    expect(list[0].snap.history).toBe('x');
     for (let t = 3; t < 20; t++) list = remember(list, snapOf(t));
     expect(list.length).toBe(RECENT_MAX);
   });

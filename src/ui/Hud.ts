@@ -422,6 +422,32 @@ export class Hud {
     });
   }
 
+  /** A question with several answers (the last is the main one): the index picked, or null if dismissed. */
+  choose(question: string, answers: string[]): Promise<number | null> {
+    const d = document.createElement('dialog');
+    d.className = 'ask';
+    d.innerHTML = '<h2></h2><div class="row"></div>';
+    d.querySelector('h2')!.textContent = question;
+    const row = d.querySelector('.row')!;
+    document.body.appendChild(d);
+    return new Promise((done) => {
+      const close = (v: number | null) => {
+        d.close();
+        d.remove();
+        done(v);
+      };
+      answers.forEach((a, i) => {
+        const b = document.createElement('button');
+        b.textContent = a;
+        if (i === answers.length - 1) b.className = 'yes';
+        b.onclick = () => close(i);
+        row.appendChild(b);
+      });
+      d.oncancel = () => close(null);
+      d.showModal();
+    });
+  }
+
   /** A yes/no question in a small dialog: true for yes, false for no, null if dismissed. */
   ask(question: string, yes = 'Yes', no = 'Cancel'): Promise<boolean | null> {
     const d = document.createElement('dialog');

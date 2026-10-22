@@ -723,6 +723,11 @@ export class Game {
     return this.redoStack.length > 0;
   }
 
+  /** How many moves redo could bring back. */
+  get redoCount(): number {
+    return this.redoStack.length;
+  }
+
   startGuess(): void {
     this.layer++;
     this.history.push({ kind: 'guess-start', layer: this.layer, changes: [] });
