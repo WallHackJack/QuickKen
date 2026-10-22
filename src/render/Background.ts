@@ -29,6 +29,7 @@ uniform vec2 uResolution;
 // Lightning behind the clouds: xy = where (px), z = brightness now; and its colour.
 uniform vec4 uFlash;
 uniform vec3 uFlashColor;
+uniform float uClouds;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -63,6 +64,8 @@ void main() {
     float d = length(px - uFlash.xy) / min(uResolution.x, uResolution.y);
     col += uFlashColor * uFlash.z * exp(-d * d * 5.0) * (0.15 + 2.2 * n * n);
   }
+  // Clouds hidden (H key): just the deep backdrop.
+  col = mix(deep, col, uClouds);
   // Horizontal vignette: the sides fade darker, off toward the screen edges.
   float side = min(vUV.x, 1.0 - vUV.x);
   col *= mix(0.4, 1.0, smoothstep(0.0, 0.22, side));
@@ -99,11 +102,17 @@ export class Background {
           uResolution: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uFlash: { value: new Float32Array([0, 0, 0, 0]), type: 'vec4<f32>' },
           uFlashColor: { value: new Float32Array([1, 1, 1]), type: 'vec3<f32>' },
+          uClouds: { value: 1, type: 'f32' },
         },
       },
     });
     this.mesh = new Mesh({ geometry, shader });
     this.uniforms = shader.resources.bgUniforms.uniforms;
+  }
+
+  /** Show or hide the clouds (H key, with the board fog). */
+  setClouds(on: boolean): void {
+    this.uniforms.uClouds = on ? 1 : 0;
   }
 
   resize(w: number, h: number): void {

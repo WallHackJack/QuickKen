@@ -636,10 +636,19 @@ window.addEventListener('keydown', (e) => {
   else if (key === 'Backspace' || key === 'Delete' || key === 'Escape' || (plain && key === 'c')) clearCell(s);
   else if ((key === 'y' && (e.ctrlKey || e.metaKey)) || (key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) handlers.redo();
   else if ((key === 'z' && (e.ctrlKey || e.metaKey)) || (plain && key === 'u')) handlers.undo();
-  else if (plain && key === 'n') handlers.toggleNotes(); else if (plain && key === 'g') handlers.guess();
-  // H shows or hides the fog (a clear look at the lights); Shift+H asks for a hint.
+  else if (plain && key === 'n') handlers.toggleNotes();
+  // G turns the lighting off and on (Shift+G starts a guess); H the fog and clouds (Shift+H: a hint).
+  else if (plain && key === 'g' && e.shiftKey) handlers.guess();
+  else if (plain && key === 'g' && board.lighting) {
+    board.lighting.enabled = !board.lighting.enabled;
+    hud.say(board.lighting.enabled ? 'Lighting on.' : 'Lighting off (G brings it back).');
+  }
   else if (plain && key === 'h' && e.shiftKey) handlers.hint();
-  else if (plain && key === 'h') hud.say(board.lighting?.toggleFog() ? 'Fog on.' : 'Fog off (H brings it back).');
+  else if (plain && key === 'h') {
+    const on = board.lighting?.toggleFog() ?? true;
+    bg.setClouds(on);
+    hud.say(on ? 'Fog and clouds on.' : 'Fog and clouds off (H brings them back).');
+  }
   // Q W E / A S D enter digits like the pad's layout; Shift makes it a maybe, as with number keys.
   else if (letterDigit >= 0) (rules().goal ? handlers.digit(letterDigit) : digitAction(s, letterDigit, notesMode !== e.shiftKey));
   else if (/^[0-9]$/.test(e.code.replace('Digit', '').replace('Numpad', '')) || e.code === 'Backquote') {

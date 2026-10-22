@@ -221,6 +221,9 @@ export class Lighting {
     this.u.uCell = cs;
   }
 
+  /** Off (G key): no lighting pass at all. */
+  enabled = true;
+
   /** Show or hide the fog over the board (H key: a clear look at the lights). */
   toggleFog(): boolean {
     this.u.uFog = this.u.uFog ? 0 : 1;
@@ -237,7 +240,7 @@ export class Lighting {
 
   update(dtMs: number): void {
     // The pass also runs while ripples cross the board, even with no light alive.
-    if (!this.sources.length && !this.ripples.active) {
+    if (!this.enabled || (!this.sources.length && !this.ripples.active)) {
       if (this.target.filters) this.off();
       return;
     }
