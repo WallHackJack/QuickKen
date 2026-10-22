@@ -1995,7 +1995,7 @@ export class BoardView extends Container {
       // Shines from just inside the outline: the stroke is lit, the cells it surrounds stay clear.
       segmentsAt: () => this.loopSegments(cageLoops(path(), n), SEL_W(this.cs)),
       color: 0xdfe8ff, radius: this.cs * 0.3, mask: true,
-      level: () => glow.level * 0.24 + glow.flash,
+      level: () => glow.level * 0.4 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
     // The leftover cells glow amber (green when they pin a digit).
@@ -2003,7 +2003,7 @@ export class BoardView extends Container {
       segments: [],
       segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), Math.max(2, this.cs * 0.045)) : []),
       color: HIDDEN, radius: this.cs * 0.26, mask: true,
-      level: () => (this.ghost ? glow.level * 0.15 : 0),
+      level: () => (this.ghost ? glow.level * 0.25 : 0),
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
   }
@@ -2116,10 +2116,16 @@ export class BoardView extends Container {
     }
   }
 
-  /** Which way a selection's pill combines: the player's switch, else the start cell's cage operator. */
+  /**
+   * Which way a selection's pill combines: the player's switch, else whichever of adding and
+   * multiplying gives a total (both do: the start cell's cage operator decides).
+   */
   private sumSelectionOp(region: number[]): '+' | '×' {
     if (this.sumOp) return this.sumOp;
-    return this.game.puzzle.cages[this.game.topo.cageOf[region[0]]].op === 'mul' ? '×' : '+';
+    const mul = this.game.puzzle.cages[this.game.topo.cageOf[region[0]]].op === 'mul';
+    const first: '+' | '×' = mul ? '×' : '+', other: '+' | '×' = mul ? '+' : '×';
+    const works = (op: '+' | '×') => this.game.regionTotal(region, op === '×' ? 'product' : 'sum') !== null;
+    return works(first) || !works(other) ? first : other;
   }
 
   /** A spot beside `cells` but off them: the nearest cell centre not in `avoid` (pills sit over less useful cells). */
