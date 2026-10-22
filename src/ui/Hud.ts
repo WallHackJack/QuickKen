@@ -27,6 +27,8 @@ export interface HudHandlers {
   sweepStep(digits: number[]): void;
   /** The sweep was released. */
   sweepEnd(): void;
+  /** A digit was held down in maybe mode: enter it as a number and leave maybe mode. */
+  digitHold(d: number): void;
   optionsChanged(o: Options): void;
 }
 
@@ -454,7 +456,10 @@ export class Hud {
    * added as a maybe the moment it's reached. A press and release on one digit is a normal tap.
    */
   private padSweep(): void {
-    let sweep: { digits: number[]; active: boolean } | null = null;
+    let sweep: { digits: number[]; active: boolean; held?: boolean } | null = null;
+    // In maybe mode, holding a digit (HOLD_MS) enters it as a number instead.
+    const HOLD_MS = 450;
+    let hold = 0;
     const digitAt = (e: PointerEvent): number => {
       const b = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>('button[data-d]');
       return b && this.pad.contains(b) ? Number(b.dataset.d) : -1;
@@ -465,22 +470,38 @@ export class Hud {
       sweep = { digits: [d], active: false };
       this.swept = false;
       this.padButtons[d]?.classList.add('pressed');
+      clearTimeout(hold);
+      if (this.pad.classList.contains('notes')) {
+        hold = window.setTimeout(() => {
+          if (!sweep || sweep.active) return;
+          sweep.held = true;
+          this.h.digitHold(d);
+        }, HOLD_MS);
+      }
     });
     // On the document, so the sweep follows the finger anywhere (no pointer capture: it would steal
     // the click a plain tap needs).
     document.addEventListener('pointermove', (e) => {
       const d = sweep ? digitAt(e) : -1;
-      if (!sweep || d < 0 || sweep.digits.includes(d)) return;
+      if (!sweep || sweep.held || d < 0 || sweep.digits.includes(d)) return;
+      clearTimeout(hold);
       sweep.active = true;
       sweep.digits.push(d);
       for (const k of sweep.digits) this.padButtons[k]?.classList.add('swept', 'pressed');
       this.h.sweepStep(sweep.digits);
     });
     const end = () => {
+      clearTimeout(hold);
       if (!sweep) return;
       const s = sweep;
       sweep = null;
       for (const b of this.padButtons) b.classList.remove('swept', 'pressed');
+      if (s.held) {
+        // The hold already entered the digit: the click after release does nothing.
+        this.swept = true;
+        setTimeout(() => (this.swept = false), 0);
+        return;
+      }
       if (!s.active) return;
       // The click that follows this release must not also enter the first digit.
       this.swept = true;

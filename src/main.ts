@@ -236,6 +236,13 @@ const handlers: HudHandlers = {
     buzz(8);
     sync();
   },
+  digitHold: (d) => {
+    if (!game || solvedAt) return;
+    notesMode = false;
+    buzz(20);
+    digitAction(board.selected, d, false);
+    sync();
+  },
   sweepEnd: () => {
     sweepBase = null;
   },
