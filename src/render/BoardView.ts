@@ -1989,6 +1989,22 @@ export class BoardView extends Container {
   }
 
   /** A soft light along the drag outline while selecting (and while a locked selection shows). */
+  /** The cells of a drag selection and its leftover, as row runs: the lighting keeps all light off them. */
+  selectionMask(): number[][] {
+    const path = this.drag?.active ? this.drag.path : (this.lockedSel?.path ?? []);
+    if (!path.length || !this.game) return [];
+    const n = this.game.n, cs = this.cs;
+    const cells = [...new Set([...path, ...(this.ghost?.cells ?? [])])].sort((a, b) => a - b);
+    const runs: number[][] = [];
+    for (const c of cells) {
+      const last = runs.at(-1);
+      // Extends the run when this cell is the next one along the same row.
+      if (last && c === last[1] + 1 && Math.floor(c / n) === Math.floor(last[0] / n)) last[1] = c;
+      else runs.push([c, c]);
+    }
+    return runs.map(([a, b]) => [(a % n) * cs, Math.floor(a / n) * cs, ((b % n) + 1) * cs, (Math.floor(a / n) + 1) * cs]);
+  }
+
   private startDragGlow(): void {
     const n = this.game.n;
     this.dragGlow = { level: 0, flash: 0 };
@@ -1996,8 +2012,7 @@ export class BoardView extends Container {
     const path = () => this.drag?.path ?? this.lockedSel?.path ?? [];
     this.lighting?.add({
       segments: [],
-      // Shines from just inside the outline: the stroke is lit, the cells it surrounds stay clear.
-      segmentsAt: () => this.loopSegments(cageLoops(path(), n), SEL_W(this.cs)),
+      segmentsAt: () => this.loopSegments(cageLoops(path(), n), 0),
       color: 0xdfe8ff, radius: this.cs * 0.3, mask: true,
       level: () => glow.level * 0.4 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
@@ -2005,7 +2020,7 @@ export class BoardView extends Container {
     // The leftover cells glow amber (green when they pin a digit).
     this.lighting?.add({
       segments: [],
-      segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), Math.max(2, this.cs * 0.045)) : []),
+      segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), 0) : []),
       color: HIDDEN, radius: this.cs * 0.26, mask: true,
       level: () => (this.ghost ? glow.level * 0.25 : 0),
       alive: () => this.dragGlow === glow && path().length > 0,

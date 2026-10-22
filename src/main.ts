@@ -41,6 +41,7 @@ scene.filterArea = app.screen;
 scene.addChild(bg.mesh, board);
 app.stage.addChild(scene);
 board.lighting = new Lighting(scene, board, app.canvas, hudEl, bg.ripples);
+board.lighting.maskRects = () => board.selectionMask();
 
 let game: Game | null = null;
 let notesMode = false;
@@ -636,7 +637,9 @@ window.addEventListener('keydown', (e) => {
   else if ((key === 'y' && (e.ctrlKey || e.metaKey)) || (key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) handlers.redo();
   else if ((key === 'z' && (e.ctrlKey || e.metaKey)) || (plain && key === 'u')) handlers.undo();
   else if (plain && key === 'n') handlers.toggleNotes(); else if (plain && key === 'g') handlers.guess();
-  else if (plain && key === 'h') handlers.hint();
+  // H shows or hides the fog (a clear look at the lights); Shift+H asks for a hint.
+  else if (plain && key === 'h' && e.shiftKey) handlers.hint();
+  else if (plain && key === 'h') hud.say(board.lighting?.toggleFog() ? 'Fog on.' : 'Fog off (H brings it back).');
   // Q W E / A S D enter digits like the pad's layout; Shift makes it a maybe, as with number keys.
   else if (letterDigit >= 0) (rules().goal ? handlers.digit(letterDigit) : digitAction(s, letterDigit, notesMode !== e.shiftKey));
   else if (/^[0-9]$/.test(e.code.replace('Digit', '').replace('Numpad', '')) || e.code === 'Backquote') {

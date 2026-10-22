@@ -19,6 +19,8 @@ import { RIPPLE_GLSL, type Ripples } from './Ripples';
 // segments spills into the next slots (lit once, as one outline); with no slots left it lights from
 // its bounding box.
 const MAX_SRC = 10, LIGHT_SEGS = 6, MAX_SEG = MAX_SRC * LIGHT_SEGS;
+// ponytail: rectangles past this are left unmasked; a mask texture if selections ever need more.
+const MAX_MASK = 24;
 
 export interface LightSpec {
   /** Board-local segments [x1, y1, x2, y2]. */
@@ -69,6 +71,9 @@ uniform vec4 uRange[${MAX_SRC}];
 uniform float uCount;
 uniform float uCell;
 uniform float uTime;
+uniform float uFog;
+uniform vec4 uMask[${MAX_MASK}];
+uniform float uMaskCount;
 float fh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float fn(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -143,12 +148,19 @@ void main(void) {
     inside = false;
   }
 
+  // Masked areas (a drag selection's cells) sit above the light: none of it reaches them.
+  for (int i = 0; i < ${MAX_MASK}; i++) {
+    if (float(i) >= uMaskCount) break;
+    vec4 m = uMask[i];
+    if (p.x >= m.x && p.y >= m.y && p.x < m.z && p.y < m.w) { diff = vec3(0.0); spec = vec3(0.0); halo = vec3(0.0); air = vec3(0.0); break; }
+  }
+
   // Strokes are glossy: they reflect mostly the light's colour, not their own. The dark board only
   // picks up a little of it.
   vec3 albedo = mix(base.rgb, vec3(h), 0.6 * stroke);
   vec3 lit = base.rgb + albedo * diff * (0.6 + 1.4 * stroke) + spec * 0.9 * stroke * h + halo * 0.35;
   // Fog over the board: barely there on its own, but lights scatter in it strongly.
-  float f = fog(p);
+  float f = fog(p) * uFog;
   lit += vec3(0.025, 0.03, 0.05) * f * base.a + air * f * 1.9;
   // Crests catch light, troughs fall into shade, and slopes facing the top-left glint.
   lit *= 1.0 + rip.z * 0.25;
@@ -169,7 +181,9 @@ function fitSegments(segs: number[][], slots: number): number[][] {
 
 export class Lighting {
   private filter: Filter;
-  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number; uTime: number };
+  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number; uTime: number; uFog: number; uMask: Float32Array; uMaskCount: number };
+  /** Board-local rectangles [x0, y0, x1, y1] that no light reaches, asked for every frame. */
+  maskRects: () => number[][] = () => [];
   private sources: Source[] = [];
   private cs = 40;
   private buttons: HTMLElement[] = [];
@@ -191,6 +205,9 @@ export class Lighting {
           uCount: { value: 0, type: 'f32' },
           uCell: { value: 40, type: 'f32' },
           uTime: { value: 0, type: 'f32' },
+          uFog: { value: 1, type: 'f32' },
+          uMask: { value: new Float32Array(MAX_MASK * 4), type: 'vec4<f32>', size: MAX_MASK },
+          uMaskCount: { value: 0, type: 'f32' },
         },
       },
       resolution: 'inherit',
@@ -202,6 +219,12 @@ export class Lighting {
   build(cs: number): void {
     this.cs = cs;
     this.u.uCell = cs;
+  }
+
+  /** Show or hide the fog over the board (H key: a clear look at the lights). */
+  toggleFog(): boolean {
+    this.u.uFog = this.u.uFog ? 0 : 1;
+    return this.u.uFog > 0;
   }
 
   add(spec: LightSpec, duration: number): void {
@@ -223,6 +246,12 @@ export class Lighting {
       this.buttons = [...this.hud.querySelectorAll<HTMLElement>('button')];
     }
     this.u.uTime += dtMs / 1000;
+    const rects = this.maskRects().slice(0, MAX_MASK);
+    rects.forEach(([x0, y0, x1, y1], i) => {
+      const a = this.space.toGlobal({ x: x0, y: y0 }), b = this.space.toGlobal({ x: x1, y: y1 });
+      this.u.uMask.set([a.x, a.y, b.x, b.y], i * 4);
+    });
+    this.u.uMaskCount = rects.length;
     const { uSeg, uSrc, uRange } = this.u;
     const cs = this.cs;
     const lights: { segs: number[][]; rgb: number[]; level: number }[] = [];
