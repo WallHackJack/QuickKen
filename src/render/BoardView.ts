@@ -1449,15 +1449,13 @@ export class BoardView extends Container {
       const ch = hidden.has(c) ? undefined : recent.get(c);
       const val = g.values[c];
       // Givens (single-cell cages, locked) look like any completed cage.
-      // Only the running guess is coloured; earlier (still open) guesses read as normal entries.
-      const color = layerColor(g.layers[c] === g.layer ? g.layers[c] : 0);
+      // Guess work reads like any entry: only the guess's first digit is marked (guessOrigin).
+      const color = layerColor(0);
       const show = val !== EMPTY && !hidden.has(c);
       v.value.text = show ? g.puzzle.digits.labels[val] : '';
       // Digits of a completed cage lean green.
       const done = this.cageViews[g.topo.cageOf[c]]?.state === 'ok';
-      // A running guess's digits keep the plain guess colour (no completed-cage green mixed in).
-      const inGuess = g.layers[c] > 0 && g.layers[c] === g.layer;
-      v.value.tint = conflicts.has(c) ? 0xff4d6d : done && !inGuess ? mix(color, 0x8cff6b, 0.35) : color;
+      v.value.tint = conflicts.has(c) ? 0xff4d6d : done ? mix(color, 0x8cff6b, 0.35) : color;
       v.cross.visible = impossible.has(c) && !show;
       if (this.disproven.has(c) && val !== EMPTY) this.disproven.delete(c);
       // An undone guess's digit: crossed out over its maybe if the cell went back to maybes holding it,
@@ -1480,7 +1478,7 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : g.layers[c] > 0 && g.layers[c] === g.layer ? (this.maybeTarget ? color : mix(color, 0x9aa3c0, 0.4)) : this.maybeTarget ? 0xffb870 : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : this.maybeTarget ? 0xffb870 : 0xb9c3e6;
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
