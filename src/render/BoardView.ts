@@ -557,6 +557,7 @@ export class BoardView extends Container {
       this.startDragGlow();
       d.anchor = { ...d.lastPos };
       d.stillMs = 0;
+      this.lineDrag = false;
       this.sumOp = null;
       this.pillSpots.clear();
       d.blueprint = start.blueprint;
@@ -628,6 +629,8 @@ export class BoardView extends Container {
     const plan = this.dragPlan(d);
     const region = d.path;
     // A whole row or column (line fill) shows only its green: no pill, leftover or selection tint.
+    // Completing the line flashes it green.
+    if (plan.mode === 'line' && !this.lineDrag) this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.8);
     this.lineDrag = plan.mode === 'line';
     // The sum pill and leftover first: a leftover that pins a cell's digit wins over a copy-paste.
     this.ghost = this.lineDrag ? null : this.showRegionSum(region);
@@ -2235,7 +2238,8 @@ export class BoardView extends Container {
     const g = this.dragHold;
     if (g.destroyed || this.pillDrag) return;
     g.clear();
-    if (!d?.active || d.locked || d.growFrom !== undefined || d.stillMs === undefined || !d.anchor) return;
+    // No hold-to-lock on a line fill: releasing it fills the line.
+    if (!d?.active || d.locked || d.growFrom !== undefined || d.stillMs === undefined || !d.anchor || this.lineDrag) return;
     d.stillMs += dtMs;
     const LOCK_MS = 800, SHOW_MS = 250;
     if (d.stillMs < SHOW_MS) return;
