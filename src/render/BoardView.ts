@@ -2,7 +2,7 @@
 // label and its cells' digits/maybes — so a whole cage can scale, glow or take a filter as a unit
 // while its children stay on grid coordinates.
 
-import { BitmapText, Container, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from 'pixi.js';
+import { BitmapText, Container, FillGradient, Graphics, Rectangle, Sprite, Text, Texture, type FederatedPointerEvent } from 'pixi.js';
 import { has, popcount } from '../engine/bits';
 import { cageLabel } from '../engine/puzzle';
 import { EMPTY, type ActionResult, type Game, type LineGroup } from '../game/Game';
@@ -446,6 +446,8 @@ export class BoardView extends Container {
   private selLayer = new Graphics();
   private selRings: { ci: number; t: number; out: boolean }[] = [];
   private selCage = -1;
+  /** The pill outline's pink-to-blue gradient (made once). */
+  private pillEdge: FillGradient | null = null;
   /** The drag covers exactly one row or column (a line fill): drawn in its green only. */
   private lineDrag = false;
   /** The pill's operation when the player tapped it to switch (else it follows the start cell's cage). */
@@ -661,7 +663,8 @@ export class BoardView extends Container {
     // The hidden cage those sums imply, outlined as boldly as the selection.
     // A leftover that pins one cell's digit is green: releasing enters it.
     if (this.ghost) this.drawHidden(g, this.ghost.cells, confirm ? CONFIRM : HIDDEN);
-    this.setGhostLabels(this.ghost);
+    // The leftover's target is in the selection's pill now, not a pill of its own.
+    this.setGhostLabels(null);
     this.refresh();
   }
 
@@ -718,25 +721,42 @@ export class BoardView extends Container {
     const pill = this.sumPill;
     const info = this.sumSelection(region);
     this.sumKnown = !!info?.showTotal;
-    // A single whole cage: its total would just repeat its own label.
-    if (!pill || pill.destroyed || (info && !info.showTotal)) {
+    // A single whole cage: its total would just repeat its own label (its leftover still shows).
+    if (!pill || pill.destroyed || (info && !info.showTotal && !info.hidden)) {
       if (pill && !pill.destroyed) pill.visible = false;
       return info?.hidden ?? null;
     }
+    // One pill, top to bottom: the leftover's target (pink, or green when it pins a digit), the
+    // selection's total (blue), and the whole lines' total it comes from (grey, e.g. 63 for three rows of 21).
+    const hidden = info?.hidden ?? null;
+    const left = pill.getChildAt(3) as Text;
+    left.visible = !!hidden;
+    if (hidden) {
+      left.text = hidden.cells.length === 1 ? `${hidden.target}` : `${hidden.target}${hidden.op ?? '+'}`;
+      left.tint = this.confirmDigit(hidden) >= 0 ? CONFIRM : HIDDEN;
+    }
     const label = pill.getChildAt(1) as Text;
-    // Neither adding nor multiplying gives a total yet: the pill stays as "?" while the selection grows.
+    // Neither adding nor multiplying gives a total yet: "?" while the selection grows.
     label.text = info ? `${+info.total.toFixed(3)}${info.op}` : '?';
-    // With a leftover, the total of the whole rows/columns it comes from (e.g. 63 for three rows of 21).
+    label.tint = NEUTRAL;
+    label.visible = !info || info.showTotal;
     const sub = pill.getChildAt(2) as Text;
-    sub.visible = !!info?.hidden;
-    if (info?.hidden) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
+    sub.visible = !!hidden && label.visible;
+    if (hidden && info) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
     const bg = pill.getChildAt(0) as Graphics;
     const cs = this.cs;
-    const subH = sub.visible ? sub.height * 0.85 : 0;
-    label.y = -subH / 2;
-    sub.y = label.height / 2 - subH / 2 + sub.height * 0.38;
-    const w = Math.max(label.width, sub.visible ? sub.width : 0) + cs * 0.4, h = label.height + subH + cs * 0.14;
-    bg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h, w) / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: NEUTRAL, alpha: 0.85 });
+    const lines = [left, label, sub].filter((t) => t.visible);
+    const gap = cs * 0.02;
+    const h = lines.reduce((a, t) => a + t.height * 0.88, 0) + gap * (lines.length - 1) + cs * 0.14;
+    let y = -h / 2 + cs * 0.07;
+    for (const t of lines) {
+      t.y = y + (t.height * 0.88) / 2;
+      y += t.height * 0.88 + gap;
+    }
+    const w = Math.max(...lines.map((t) => t.width)) + cs * 0.4;
+    // With a leftover the outline runs from its pink (top) to the selection's blue (bottom).
+    this.pillEdge ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: HIDDEN }, { offset: 1, color: NEUTRAL }], textureSpace: 'local' });
+    bg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h, w) / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke(hidden ? { width: 2, fill: this.pillEdge, alpha: 0.85 } : { width: 2, color: NEUTRAL, alpha: 0.85 });
     // The selection's own pill sits in its middle.
     const n = this.game.n;
     pill.position.set(
@@ -1366,7 +1386,10 @@ export class BoardView extends Container {
       new Graphics(),
       new Text({ text: '', style: { fontFamily: FONT, fontSize: Math.max(15, this.cs * 0.36), fill: 0xffffff, fontWeight: '800' } }),
       new Text({ text: '', style: { fontFamily: FONT, fontSize: Math.max(10, this.cs * 0.2), fill: 0xffffff, fontWeight: '700' } }),
+      // The leftover's target, on top.
+      new Text({ text: '', style: { fontFamily: FONT, fontSize: Math.max(13, this.cs * 0.3), fill: 0xffffff, fontWeight: '800' } }),
     );
+    (this.sumPill.getChildAt(3) as Text).anchor.set(0.5);
     (this.sumPill.getChildAt(1) as Text).anchor.set(0.5);
     (this.sumPill.getChildAt(2) as Text).anchor.set(0.5);
     this.sumPill.eventMode = 'static';
@@ -2131,7 +2154,7 @@ export class BoardView extends Container {
     for (const loop of cageLoops(path, n)) g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color: NEUTRAL, alpha: 0.95, join: 'miter' });
     this.ghost = this.showRegionSum(path);
     if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
-    this.setGhostLabels(this.ghost);
+    this.setGhostLabels(null);
     this.refresh();
   }
 
