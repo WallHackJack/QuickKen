@@ -446,6 +446,8 @@ export class BoardView extends Container {
   private selLayer = new Graphics();
   private selRings: { ci: number; t: number; out: boolean }[] = [];
   private selCage = -1;
+  /** The drag covers exactly one row or column (a line fill): drawn in its green only. */
+  private lineDrag = false;
   /** The pill's operation when the player tapped it to switch (else it follows the start cell's cage). */
   private sumOp: '+' | '×' | null = null;
   /** The pill shows a real total (not ?). */
@@ -625,8 +627,11 @@ export class BoardView extends Container {
     if (d.growFrom !== undefined) return this.drawLocked(d.path);
     const plan = this.dragPlan(d);
     const region = d.path;
+    // A whole row or column (line fill) shows only its green: no pill, leftover or selection tint.
+    this.lineDrag = plan.mode === 'line';
     // The sum pill and leftover first: a leftover that pins a cell's digit wins over a copy-paste.
-    this.ghost = this.showRegionSum(region);
+    this.ghost = this.lineDrag ? null : this.showRegionSum(region);
+    if (this.lineDrag && this.sumPill && !this.sumPill.destroyed) this.sumPill.visible = false;
     const confirm = this.confirmDigit(this.ghost) >= 0;
     if (confirm && plan.mode === 'copy') plan.mode = 'none';
     // Only a live copy keeps the start cell breathing (it stops once the drag leaves the row/column/cage).
@@ -1419,7 +1424,7 @@ export class BoardView extends Container {
       });
     }
     const sel = this.selected;
-    const selCells = new Set(this.drag?.active ? this.drag.path : (this.lockedSel?.path ?? []));
+    const selCells = new Set(this.drag?.active ? (this.lineDrag ? [] : this.drag.path) : (this.lockedSel?.path ?? []));
     const leftCells = new Set(this.ghost && selCells.size ? this.ghost.cells : []);
     // Digits a chain hasn't revealed yet don't count for the same-digit highlight (it would give them away).
     const selVal = hidden.has(sel) ? EMPTY : g.values[sel];
@@ -2067,6 +2072,7 @@ export class BoardView extends Container {
       segments: [],
       segmentsAt: () => this.loopSegments(cageLoops(path(), n), 0),
       color: NEUTRAL, radius: this.cs * 0.3, mask: true,
+      colorAt: () => (this.drag?.active && this.lineDrag ? LINE : NEUTRAL),
       level: () => glow.level * 0.22 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
     }, Infinity);
