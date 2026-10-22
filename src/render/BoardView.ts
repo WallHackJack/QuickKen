@@ -447,6 +447,8 @@ export class BoardView extends Container {
   private selCage = -1;
   /** The pill's operation when the player tapped it to switch (else it follows the start cell's cage). */
   private sumOp: '+' | '×' | null = null;
+  /** The pill shows a real total (not ?). */
+  private sumKnown = false;
   /** A pill being dragged (or tapped) in a locked selection. */
   private pillDrag: { pill: Container; main: boolean; dx: number; dy: number; start: { x: number; y: number }; at: { x: number; y: number }; moved: boolean } | null = null;
   /** Where the player put pills (by label key); otherwise they sit beside their cells. */
@@ -700,17 +702,19 @@ export class BoardView extends Container {
   private showRegionSum(region: number[]): HiddenCage | null {
     const pill = this.sumPill;
     const info = this.sumSelection(region);
-    if (!pill || pill.destroyed || !info || !info.showTotal) {
+    this.sumKnown = !!info?.showTotal;
+    // A single whole cage: its total would just repeat its own label.
+    if (!pill || pill.destroyed || (info && !info.showTotal)) {
       if (pill && !pill.destroyed) pill.visible = false;
       return info?.hidden ?? null;
     }
-    const total = info.total;
     const label = pill.getChildAt(1) as Text;
-    label.text = `${+total.toFixed(3)}${info.op}`;
+    // Neither adding nor multiplying gives a total yet: the pill stays as "?" while the selection grows.
+    label.text = info ? `${+info.total.toFixed(3)}${info.op}` : '?';
     // With a leftover, the total of the whole rows/columns it comes from (e.g. 63 for three rows of 21).
     const sub = pill.getChildAt(2) as Text;
-    sub.visible = !!info.hidden;
-    if (info.hidden) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
+    sub.visible = !!info?.hidden;
+    if (info?.hidden) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
     const bg = pill.getChildAt(0) as Graphics;
     const cs = this.cs;
     const subH = sub.visible ? sub.height * 0.85 : 0;
@@ -729,7 +733,7 @@ export class BoardView extends Container {
       pill.scale.set(0.6);
       this.tweens.add({ duration: 220, ease: ease.outBack, update: (t) => !pill.destroyed && pill.scale.set(0.6 + 0.4 * t) });
     }
-    return info.hidden;
+    return info?.hidden ?? null;
   }
 
   // ---------- hidden cages (shown only while selected) ----------
@@ -816,7 +820,7 @@ export class BoardView extends Container {
 
   private endDrag(): void {
     const d = this.drag;
-    if (d?.active && !d.locked && !d.held && this.dragPlan(d).mode === 'none' && this.confirmDigit(this.ghost) < 0 && (this.ghost || this.sumPill?.visible)) d.locked = true;
+    if (d?.active && !d.locked && !d.held && this.dragPlan(d).mode === 'none' && this.confirmDigit(this.ghost) < 0 && (this.ghost || this.sumKnown)) d.locked = true;
     if (d?.locked) {
       this.drag = null;
       this.cellViews[d.source]?.flash.clear();
