@@ -2057,7 +2057,8 @@ export class BoardView extends Container {
         // A gentle flash over a firmer resting glow (a big flash blew out nearby digits; the rest was too faint).
         const base = 0.26 + 0.1 * Math.exp(-(t - life.born) / 160);
         const off = life.gone ? Math.max(0, 1 - (t - life.gone) / 180) : 1;
-        return on * base * off * this.selFade;
+        // The white (normal mode) light a little softer than the orange maybe-mode one.
+        return on * base * off * this.selFade * (0.8 + 0.2 * this.maybeMix);
       },
       alive: () => !life.gone || performance.now() - life.gone < 180,
     }, Infinity);
