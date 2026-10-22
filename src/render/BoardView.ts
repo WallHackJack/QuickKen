@@ -1477,7 +1477,9 @@ export class BoardView extends Container {
     // Cages down to one empty cell whose math no digit can complete: that cell gets a red X.
     const impossible = new Set<number>();
     if (g.settings.autoFill && g.settings.fillCageLast) {
-      g.puzzle.cages.forEach((_, ci) => {
+      g.puzzle.cages.forEach((cage, ci) => {
+        // Not before the chain wave that filled the cage's other cells has played.
+        if (cage.cells.some((c) => hidden.has(c))) return;
         const gap = g.cageGap(ci);
         if (gap && !gap.fits.length) impossible.add(gap.cell);
       });
@@ -1882,8 +1884,8 @@ export class BoardView extends Container {
     const frame = this.frame;
     const rest = frame.tint;
     this.tweens.add({ duration: 600, ease: ease.outCubic, update: (t) => !frame.destroyed && (frame.tint = mix(0xff5a6e, rest as number, t)) });
-    // The chain's labels go red and stay red as they fade (their glow is white ink, so the tint carries it).
-    for (const e of this.combos) if (e.r === r) e.t.tint = ERROR;
+    // The chain's labels just get out of the way, quickly.
+    for (const e of [...this.combos]) if (e.r === r) this.retireCombo(e, 120);
     if (wave >= 1 && cells.length) this.comboLabel('CHAIN BROKEN', cells, r.waves.flat(), r, ERROR);
   }
 
@@ -1922,9 +1924,9 @@ export class BoardView extends Container {
   }
 
   /** A chain label leaves early (pool full, or its chain was undone): it shrinks and fades out quickly. */
-  private retireCombo(e: BoardView['combos'][number]): void {
+  private retireCombo(e: BoardView['combos'][number], ms = 200): void {
     this.combos = this.combos.filter((x) => x !== e);
-    this.tweens.add({ duration: 200, ease: ease.outCubic, update: (v) => (e.k = Math.min(e.k, 1 - v)) });
+    this.tweens.add({ duration: ms, ease: ease.outCubic, update: (v) => (e.k = Math.min(e.k, 1 - v)) });
   }
 
   celebrate(from: number): void {
