@@ -22,6 +22,10 @@ export interface HudHandlers {
   newGame(o: GenOptions): void;
   /** Start a campaign level (index into LEVELS). */
   playLevel(i: number): void;
+  /** The Recent list, newest first, for the New dialog. */
+  recent(): { title: string; detail: string; solved: boolean }[];
+  /** Open the i-th Recent puzzle. */
+  openRecent(i: number): void;
   toggleNotes(): void;
   /** A finger is sweeping the digit pad: these digits (so far) become maybes in the selected cell now. */
   sweepStep(digits: number[]): void;
@@ -70,7 +74,10 @@ export class Hud {
     this.meta = top.querySelector('.meta')!;
     this.timerEl = top.querySelector('.timer')!;
     this.fpsEl = top.querySelector('.fps')!;
-    top.querySelector<HTMLButtonElement>('[data-k=new]')!.onclick = () => this.dialog.showModal();
+    top.querySelector<HTMLButtonElement>('[data-k=new]')!.onclick = () => {
+      this.fillRecent();
+      this.dialog.showModal();
+    };
     top.querySelector<HTMLButtonElement>('[data-k=options]')!.onclick = () => this.optionsDialog.showModal();
 
     this.message = document.createElement('div');
@@ -295,6 +302,10 @@ export class Hud {
           <summary>Campaign</summary>
           <div class="levels">${LEVELS.map((l, i) => `<button data-level="${i}"><b>${i + 1}</b> ${l.name}</button>`).join('')}</div>
         </details>
+        <details class="campaign recent">
+          <summary>Recent</summary>
+          <div class="levels"></div>
+        </details>
         <h3>Size</h3>
         ${choices('size', [4, 5, 6, 7, 8, 9].map((n) => [String(n), n === 6 ? `${n}×${n} ★` : `${n}×${n}`]), ['6'], 'sizes')}
         <h3>Difficulty</h3>
@@ -393,7 +404,26 @@ export class Hud {
   }
 
   /** Ask a yes/no question in a small dialog (Yes resolves true). */
-  ask(question: string, yes = 'Yes', no = 'Cancel'): Promise<boolean> {
+  /** List the Recent puzzles in the New dialog (each button opens one). */
+  private fillRecent(): void {
+    const box = this.dialog.querySelector<HTMLElement>('.recent .levels')!;
+    const items = this.h.recent();
+    box.innerHTML = items.length ? '' : '<p class="note">Puzzles you play show up here.</p>';
+    items.forEach((it, i) => {
+      const b = document.createElement('button');
+      b.innerHTML = `<b>${it.solved ? '✓' : i + 1}</b> <span></span><small></small>`;
+      b.querySelector('span')!.textContent = it.title;
+      b.querySelector('small')!.textContent = it.detail;
+      b.onclick = () => {
+        this.dialog.close();
+        this.h.openRecent(i);
+      };
+      box.appendChild(b);
+    });
+  }
+
+  /** A yes/no question in a small dialog: true for yes, false for no, null if dismissed. */
+  ask(question: string, yes = 'Yes', no = 'Cancel'): Promise<boolean | null> {
     const d = document.createElement('dialog');
     d.className = 'ask';
     d.innerHTML = `<h2></h2><div class="row"><button data-a="no" class="no"></button><button data-a="yes" class="yes"></button></div>`;
@@ -403,14 +433,14 @@ export class Hud {
     document.body.appendChild(d);
     d.showModal();
     return new Promise((done) => {
-      const close = (v: boolean) => {
+      const close = (v: boolean | null) => {
         d.close();
         d.remove();
         done(v);
       };
       d.querySelector<HTMLButtonElement>('.yes')!.onclick = () => close(true);
       d.querySelector<HTMLButtonElement>('.no')!.onclick = () => close(false);
-      d.oncancel = () => close(false);
+      d.oncancel = () => close(null);
     });
   }
 

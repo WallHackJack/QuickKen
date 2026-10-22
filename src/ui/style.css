@@ -226,3 +226,7 @@ dialog.ask .yes { background: #8cff6b; border-color: #8cff6b; color: #0b1a08; fo
 
 /* Below High graphics, panels and buttons are solid (no see-through backgrounds). */
 body.gfx-solid { --panel: #0e1024; }
+
+/* Recent puzzles (New → Recent): number or ✓, title, then how far along and when. */
+dialog.newgame .recent .levels button { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: baseline; }
+dialog.newgame .recent .levels small { grid-column: 2; color: var(--muted); font-weight: 400; font-size: 12px; }

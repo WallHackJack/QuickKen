@@ -26,7 +26,7 @@ export const LEVELS: Level[] = [
       ],
       holes: holesOutside(6, [0, 1, 2, 3, 4, 5, 11]),
       rules: { goal: { cell: 11, digit: 2 }, lockCursor: true, noMaybes: true, digitsOnly: true },
-      meta: { rating: 'Campaign 1' },
+      meta: { rating: 'Campaign 1', campaign: true },
     },
   },
 ];

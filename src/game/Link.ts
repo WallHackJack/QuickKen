@@ -121,6 +121,22 @@ export class Link {
     }
   }
 
+  /** The Recent list (stored beside the game). */
+  async loadRecent(): Promise<unknown> {
+    try {
+      const snap = await this.db.doc('live/recent').get();
+      return snap.exists ? snap.data()?.list : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveRecent(list: unknown): void {
+    void this.db.doc('live/recent').set({ list }).catch(() => {
+      // Best effort, like the game save.
+    });
+  }
+
   /** Call `apply` once for every new message Claude writes. */
   listen(apply: (msg: RemoteMessage) => void): void {
     this.db.doc('live/claude').onSnapshot(

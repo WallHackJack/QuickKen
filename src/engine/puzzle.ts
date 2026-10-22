@@ -19,7 +19,8 @@ export interface PuzzleDef {
   holes?: number[];
   /** Campaign restrictions. */
   rules?: LevelRules;
-  meta?: { seed?: string; difficulty?: number; rating?: string };
+  /** campaign: a hand-made level (kept out of the Recent list). */
+  meta?: { seed?: string; difficulty?: number; rating?: string; campaign?: boolean };
 }
 
 export interface LevelRules {

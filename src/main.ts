@@ -14,6 +14,7 @@ import { Lighting } from './render/Lighting';
 import { Particles } from './render/Particles';
 import { Tweens } from './render/Tweens';
 import { LEVELS } from './game/campaign';
+import { remember, type RecentEntry } from './game/recent';
 import { Hud, type HudHandlers } from './ui/Hud';
 import { digitLetters } from './ui/keys';
 
@@ -201,6 +202,26 @@ const handlers: HudHandlers = {
     board.refresh();
   },
   newGame: (o) => requestPuzzle(o),
+  recent: () =>
+    recent.map(({ snap }) => {
+      const p = snap.puzzle;
+      const cells = p.size * p.size - (p.holes?.length ?? 0);
+      const filled = snap.values.filter((v) => v >= 0).length;
+      const mins = Math.max(0, Math.round((Date.now() - Date.parse(snap.updatedAt)) / 60000));
+      const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} d ago`;
+      return { title: `${p.size}×${p.size} ${p.meta?.rating ?? ''}`.trim(), detail: `${snap.solved ? 'solved' : `${filled}/${cells} filled`} · ${ago}`, solved: snap.solved };
+    }),
+  openRecent: (i) => {
+    const entry = recent[i];
+    if (!entry) return;
+    const snap = structuredClone(entry.snap);
+    if (!snap.solved) return startGame({ puzzle: snap.puzzle, attempts: 0 }, snap);
+    // A finished one: see it solved again, or play it from the start.
+    void hud.ask('You solved this one.', 'Show solved', 'Start fresh').then((show) => {
+      if (show === null) return;
+      startGame({ puzzle: snap.puzzle, attempts: 0 }, show ? snap : undefined);
+    });
+  },
   playLevel: (i) => {
     const level = LEVELS[i];
     if (level) startGame({ puzzle: structuredClone(level.puzzle), attempts: 0 });
@@ -420,8 +441,27 @@ function startGame(res: GenResult, saved?: GameSnapshot): void {
 // On claude.ai the game saves through the live link (shared with Claude). Anywhere else (GitHub Pages,
 // local dev) it saves to this browser's storage, so a reload picks up where you left off.
 const LOCAL_SAVE = 'quickken.save';
+const LOCAL_RECENT = 'quickken.recent';
+/** The last puzzles played (not campaign levels), newest first; updated with every save. */
+let recent: RecentEntry[] = [];
+let recentTimer = 0;
+function rememberCurrent(): void {
+  clearTimeout(recentTimer);
+  recentTimer = window.setTimeout(() => {
+    const s = snapshot();
+    if (!s || s.puzzle.meta?.campaign) return;
+    recent = remember(recent, s);
+    if (link) return link.saveRecent(recent);
+    try {
+      localStorage.setItem(LOCAL_RECENT, JSON.stringify(recent));
+    } catch {
+      // Storage full or blocked: the list just isn't kept this time.
+    }
+  }, 1500);
+}
 let localTimer = 0;
 function persist(immediate = false): void {
+  rememberCurrent();
   if (link) return link.changed(immediate);
   clearTimeout(localTimer);
   localTimer = window.setTimeout(() => {
@@ -857,6 +897,12 @@ hud.say('Loading…');
 void (async () => {
   link = await Link.connect(snapshot);
   const saved = link ? await link.loadSaved() : loadLocal();
+  try {
+    const list = link ? await link.loadRecent() : JSON.parse(localStorage.getItem(LOCAL_RECENT) ?? 'null');
+    if (Array.isArray(list)) recent = (list as RecentEntry[]).filter((e) => e?.snap?.v === 1 && e.snap.puzzle);
+  } catch {
+    // Nothing kept yet (or storage blocked): the list starts empty.
+  }
   // Saving in this browser: ask it to keep the site's storage even when space runs low (it may say no;
   // the save still works, it just isn't protected from cleanup).
   if (!link) void navigator.storage?.persist?.().catch(() => false);
