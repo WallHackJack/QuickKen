@@ -327,6 +327,19 @@ describe('Game', () => {
     expect(g.regionTotal(region, 'product')).toBe(muls[0].target * muls[1].target);
   });
 
+  it('a pair the maybes settle in a line is known: it sums, and the cell beside it is the last gap', () => {
+    const g = new Game(puzzle);
+    const n = puzzle.size;
+    const vals = puzzle.digits.values;
+    const pair = (1 << sol[0]) | (1 << sol[1]);
+    g.copyNotes([0, 1], pair);
+    expect(g.lineGroups(Array.from({ length: n }, (_, j) => j))).toEqual([{ cells: [0, 1], mask: pair }]);
+    expect(g.regionTotal([0, 1], 'sum')).toBe(vals[sol[0]] + vals[sol[1]]);
+    // Fill the rest of the row but cell 2: with the pair settled, cell 2 is the row's last gap.
+    for (let c = 3; c < n; c++) if (g.values[c] < 0) g.setValue(c, sol[c]);
+    expect(g.values[2]).toBe(sol[2]);
+  });
+
   it('a complete row counts as known, whatever its cages', () => {
     const g = new Game(puzzle);
     const n = puzzle.size;

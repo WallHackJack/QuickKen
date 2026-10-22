@@ -388,6 +388,36 @@ export class Game {
   }
 
   /**
+   * The groups the player's maybes already settle in a line: k empty cells (2 ≤ k ≤ 4) whose maybes
+   * together use exactly k digits. Those digits are theirs, whichever way round, so as far as the line
+   * goes they're as good as placed. Disjoint, smallest first.
+   */
+  lineGroups(line: number[]): { cells: number[]; mask: number }[] {
+    const out: { cells: number[]; mask: number }[] = [];
+    let open = line.filter((c) => this.values[c] === EMPTY && popcount(this.notes[c]) >= 2);
+    for (let k = 2; k <= Math.min(4, open.length); k++) {
+      const pick: number[] = [];
+      const search = (from: number): boolean => {
+        if (pick.length === k) return popcount(pick.reduce((m, c) => m | this.notes[c], 0)) === k;
+        for (let i = from; i < open.length; i++) {
+          if (popcount(this.notes[open[i]]) > k) continue;
+          pick.push(open[i]);
+          if (search(i + 1)) return true;
+          pick.pop();
+        }
+        return false;
+      };
+      while (open.length >= k && search(0)) {
+        const cells = [...pick];
+        out.push({ cells, mask: cells.reduce((m, c) => m | this.notes[c], 0) });
+        open = open.filter((c) => !cells.includes(c));
+        pick.length = 0;
+      }
+    }
+    return out;
+  }
+
+  /**
    * The smallest k empty cells in `line` (2 ≤ k ≤ 4) whose maybes together use exactly k digits, when
    * some other cell in the line still has one of those digits (otherwise there's nothing to remove).
    */
@@ -583,30 +613,110 @@ export class Game {
     // Cage by cage first. If that can't tell, count complete rows and columns as known (each holds
     // every digit once, whatever its cages) and let the cages account for the rest. Neither way covers
     // the other: taking a line out can split a cage the first way could settle.
-    return this.cagesTotal(region, mode, false) ?? this.cagesTotal(region, mode, true);
+    return this.cagesTotal(region, mode, 'none') ?? this.cagesTotal(region, mode, 'groups') ?? this.cagesTotal(region, mode, 'all');
   }
 
-  private cagesTotal(region: number[], mode: 'sum' | 'product', useLines: boolean): number | null {
+  /** `peel`: take out known groups ('groups'), and complete lines too ('all'), before the cages. */
+  private cagesTotal(region: number[], mode: 'sum' | 'product', peel: 'none' | 'groups' | 'all'): number | null {
     const { cages } = this.puzzle;
     const vals = this.puzzle.digits.values;
+    const of = (mask: number) => vals.reduce((a, v, d) => (mask & bit(d) ? (mode === 'sum' ? a + v : a * v) : a), mode === 'sum' ? 0 : 1);
     let total = mode === 'sum' ? 0 : 1;
     let rest = region;
-    for (const house of useLines ? this.topo.houses : []) {
-      if (!house.complete || !house.cells.every((c) => rest.includes(c))) continue;
-      total = mode === 'sum' ? total + vals.reduce((a, b) => a + b, 0) : total * vals.reduce((a, b) => a * b, 1);
-      rest = rest.filter((c) => !house.cells.includes(c));
+    const take = (cells: number[], mask: number) => {
+      total = mode === 'sum' ? total + of(mask) : total * of(mask);
+      rest = rest.filter((c) => !cells.includes(c));
+    };
+    for (const house of peel === 'all' ? this.topo.houses : []) {
+      if (house.complete && house.cells.every((c) => rest.includes(c))) take(house.cells, fullMask(this.n));
+    }
+    for (const house of peel === 'none' ? [] : this.topo.houses) {
+      if (!house.complete) continue;
+      for (const g of this.lineGroups(house.cells)) if (g.cells.every((c) => rest.includes(c))) take(g.cells, g.mask);
     }
     const inRegion = new Set(rest);
+    // Parts that don't settle on their own may still settle together (two cells of different cages
+    // sharing a column, both [1 2], add up to 3 whichever way round).
+    const open: { ci: number; part: number[] }[] = [];
     for (const ci of new Set(rest.map((c) => this.topo.cageOf[c]))) {
       const cage = cages[ci];
       const part = cage.cells.filter((c) => inRegion.has(c));
       const whole = part.length === cage.cells.length;
       const own = cage.op === 'given' || cage.op === (mode === 'sum' ? 'add' : 'mul');
       const s = whole && own ? cage.target : this.partTotal(ci, part, mode);
-      if (s === null) return null;
-      total = mode === 'sum' ? total + s : total * s;
+      if (s === null) open.push({ ci, part });
+      else total = mode === 'sum' ? total + s : total * s;
     }
-    return total;
+    if (!open.length) return total;
+    const j = this.jointTotal(open, mode);
+    return j === null ? null : mode === 'sum' ? total + j : total * j;
+  }
+
+  /**
+   * The parts of several cages taken together: every way to fill their cells from the player's
+   * maybes where cells sharing a row or column differ and each cage can still be completed. Settled
+   * (and returned) only if every such way gives the same total and every maybe left is one of them.
+   */
+  private jointTotal(parts: { ci: number; part: number[] }[], mode: 'sum' | 'product'): number | null {
+    const vals = this.puzzle.digits.values;
+    const cells = parts.flatMap((p) => p.part);
+    if (cells.some((c) => this.values[c] === EMPTY && !this.notes[c])) return null;
+    const options = cells.map((c) => (this.values[c] !== EMPTY ? [this.values[c]] : [...Array(this.n).keys()].filter((d) => this.notes[c] & bit(d))));
+    // ponytail: brute force; too many combinations reads as "can't tell".
+    if (options.reduce((k, o) => k * o.length, 1) > 50_000) return null;
+    const pick: number[] = [];
+    const used = cells.map(() => 0);
+    let total: number | null = null;
+    let settled = true;
+    const walk = (i: number): void => {
+      if (!settled) return;
+      if (i === cells.length) {
+        const at = new Map(cells.map((c, k) => [c, pick[k]]));
+        if (!parts.every(({ ci }) => this.cageFits(ci, at))) return;
+        const t = pick.reduce((a, d) => (mode === 'sum' ? a + vals[d] : a * vals[d]), mode === 'sum' ? 0 : 1);
+        if (total === null) total = t;
+        else if (!approxEq(total, t)) settled = false;
+        pick.forEach((d, k) => (used[k] |= bit(d)));
+        return;
+      }
+      const peers = this.topo.peers[cells[i]];
+      for (const d of options[i]) {
+        if (cells.some((c, k) => k < i && pick[k] === d && peers.includes(c))) continue;
+        pick[i] = d;
+        walk(i + 1);
+      }
+    };
+    walk(0);
+    if (!settled || total === null) return null;
+    return cells.every((c, k) => this.values[c] !== EMPTY || (this.notes[c] & ~used[k]) === 0) ? total : null;
+  }
+
+  /** Whether cage `ci` can be completed with the digits in `at` (its other empty cells: maybes, or any digit). */
+  private cageFits(ci: number, at: Map<number, number>): boolean {
+    const cage = this.puzzle.cages[ci];
+    const vals = this.puzzle.digits.values;
+    const op = getOperator(cage.op);
+    const clash = this.topo.cageConflicts[ci];
+    const options = cage.cells.map((c) => {
+      const d = at.get(c);
+      if (d !== undefined) return [d];
+      if (this.values[c] !== EMPTY) return [this.values[c]];
+      return [...Array(this.n).keys()].filter((d) => !this.notes[c] || this.notes[c] & bit(d));
+    });
+    const pick: number[] = [];
+    const walk = (i: number): boolean => {
+      if (i === cage.cells.length) {
+        const r = op.evaluate(pick.map((d) => vals[d]));
+        return r !== null && approxEq(r, cage.target);
+      }
+      for (const d of options[i]) {
+        if (clash.some(([a, b]) => (a === i && b < i && pick[b] === d) || (b === i && a < i && pick[a] === d))) continue;
+        pick[i] = d;
+        if (walk(i + 1)) return true;
+      }
+      return false;
+    };
+    return walk(0);
   }
 
   cageGap(ci: number): { cell: number; fits: number[] } | null {
@@ -660,9 +770,12 @@ export class Game {
         const house = this.topo.houses[hi];
         if (!house.complete || seen.has(hi)) continue;
         seen.add(hi);
-        const empty = house.cells.filter((q) => this.values[q] === EMPTY);
+        // A group the maybes settle counts as placed: one empty cell beside it is the line's last gap too.
+        const groups = this.lineGroups(house.cells);
+        const inGroup = new Set(groups.flatMap((g) => g.cells));
+        const empty = house.cells.filter((q) => this.values[q] === EMPTY && !inGroup.has(q));
         if (empty.length !== 1) continue;
-        const used = house.cells.reduce((m, q) => (this.values[q] === EMPTY ? m : m | bit(this.values[q])), 0);
+        const used = house.cells.reduce((m, q) => (this.values[q] === EMPTY ? m : m | bit(this.values[q])), 0) | groups.reduce((m, g) => m | g.mask, 0);
         const missing = fullMask(this.n) & ~used;
         // Duplicates elsewhere (a mistake) leave more than one digit missing: don't guess.
         if (popcount(missing) === 1) out.set(empty[0], lowestIndex(missing));
