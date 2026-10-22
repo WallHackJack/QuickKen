@@ -29,16 +29,18 @@ html, body {
 }
 
 #app {
+  position: relative;
   height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-#stage { position: relative; flex: 1; min-height: 0; }
-#stage canvas { position: absolute; inset: 0; display: block; touch-action: none; }
+/* The canvas covers the whole page behind the stage and HUD; the stage only reserves the board's space. */
+#app > canvas { position: absolute; inset: 0; display: block; touch-action: none; z-index: 0; }
+#stage { position: relative; flex: 1; min-height: 0; z-index: 1; pointer-events: none; }
 
-#hud { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 12px; max-width: 720px; width: 100%; margin: 0 auto; }
+#hud { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px 16px 12px; max-width: 720px; width: 100%; margin: 0 auto; }
 
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;

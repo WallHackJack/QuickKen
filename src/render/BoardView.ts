@@ -467,12 +467,18 @@ export class BoardView extends Container {
   /** Whole-board scale for the finish bump (around the board's centre). */
   private bump = 1;
   private home = { x: 0, y: 0 };
+  /** Pinch zoom (1 = fitted) and the pan that keeps the pinched spot under the fingers. */
+  private zoom = 1;
+  private pan = { x: 0, y: 0 };
+  /** A two-finger pinch in progress: where it started. Board input is off meanwhile. */
+  private pinch: { d0: number; zoom0: number; local: { x: number; y: number } } | null = null;
   private game!: Game;
 
   constructor(private tweens: Tweens, private particles: Particles, private bg: Background) {
     super();
     this.eventMode = 'static';
     this.on('pointerdown', (e: FederatedPointerEvent) => {
+      if (this.pinch) return;
       const p = e.getLocalPosition(this);
       const cell = this.cellAt(p.x, p.y);
       if (this.lockedSel) {
@@ -1310,6 +1316,9 @@ export class BoardView extends Container {
     this.cs = size / game.n;
     const cs = this.cs;
     this.home = { x, y };
+    this.zoom = 1;
+    this.pan = { x: 0, y: 0 };
+    this.pinch = null;
     this.position.set(x, y);
     this.hitArea = new Rectangle(0, 0, size, size);
 
@@ -1884,6 +1893,45 @@ export class BoardView extends Container {
     this.refresh();
   }
 
+  /**
+   * A second finger came down: whatever the first was doing is dropped, and the two pinch the board.
+   * Points are in the board's parent space (canvas pixels).
+   */
+  pinchStart(a: { x: number; y: number }, b: { x: number; y: number }): void {
+    this.cancelHold();
+    if (this.drag) {
+      this.drag = null;
+      if (!this.dragLayer.destroyed) this.dragLayer.clear();
+      if (this.sumPill && !this.sumPill.destroyed) this.sumPill.visible = false;
+      this.setGhostLabels(null);
+      this.ghost = null;
+      if (this.lockedSel) this.drawLocked();
+      this.refresh();
+    }
+    this.pillDrag = null;
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    this.pinch = {
+      d0: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      zoom0: this.zoom,
+      // The board point under the fingers' midpoint, which stays under it as they move.
+      local: { x: (mid.x - this.home.x - this.pan.x) / this.zoom, y: (mid.y - this.home.y - this.pan.y) / this.zoom },
+    };
+  }
+
+  pinchMove(a: { x: number; y: number }, b: { x: number; y: number }): void {
+    const pin = this.pinch;
+    if (!pin) return;
+    this.zoom = Math.min(4, Math.max(1, (pin.zoom0 * Math.hypot(a.x - b.x, a.y - b.y)) / pin.d0));
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    // Fitted again: back in place.
+    if (this.zoom <= 1.01) this.pan = { x: 0, y: 0 };
+    else this.pan = { x: mid.x - this.home.x - pin.local.x * this.zoom, y: mid.y - this.home.y - pin.local.y * this.zoom };
+  }
+
+  pinchEnd(): void {
+    this.pinch = null;
+  }
+
   /** Start a long-press on a × cage's cell: the fill circle grows from (x, y) inside the cage. */
   private startHold(cell: number, x: number, y: number): void {
     this.cancelHold();
@@ -2229,11 +2277,12 @@ export class BoardView extends Container {
     }
     // Scale around the board's centre: shift by half the growth.
     // (No game yet on a fresh load: the board is empty until the first puzzle arrives.)
-    const grow = this.game ? (this.cs * this.game.n * (this.bump - 1)) / 2 : 0;
-    this.scale.set(this.bump);
+    const grow = this.game ? (this.cs * this.game.n * this.zoom * (this.bump - 1)) / 2 : 0;
+    this.scale.set(this.bump * this.zoom);
+    const x = this.home.x + this.pan.x - grow, y = this.home.y + this.pan.y - grow;
     if (this.shakeAmount > 0.1) {
-      this.position.set(this.home.x - grow + (Math.random() - 0.5) * this.shakeAmount, this.home.y - grow + (Math.random() - 0.5) * this.shakeAmount);
+      this.position.set(x + (Math.random() - 0.5) * this.shakeAmount, y + (Math.random() - 0.5) * this.shakeAmount);
       this.shakeAmount *= Math.exp(-dt * 10);
-    } else this.position.set(this.home.x - grow, this.home.y - grow);
+    } else this.position.set(x, y);
   }
 }

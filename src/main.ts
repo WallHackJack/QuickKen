@@ -19,17 +19,19 @@ import { digitLetters } from './ui/keys';
 
 const stageEl = document.getElementById('stage')!;
 const hudEl = document.getElementById('hud')!;
+// The canvas fills the whole page (the background runs behind the HUD); the board sits in #stage.
+const appEl = document.getElementById('app')!;
 
 const app = new Application();
 await app.init({
-  resizeTo: stageEl,
+  resizeTo: appEl,
   antialias: true,
   preference: 'webgl',
   resolution: Math.min(window.devicePixelRatio || 1, 2),
   autoDensity: true,
   backgroundColor: 0x05060f,
 });
-stageEl.appendChild(app.canvas);
+appEl.prepend(app.canvas);
 
 const tweens = new Tweens();
 const particles = new Particles();
@@ -348,15 +350,16 @@ function after(_changed: number[]): void {
 
 function layout(): void {
   if (!game) return;
-  const w = app.screen.width, h = app.screen.height;
+  // The board fits the stage (the area above the HUD), placed in page coordinates.
+  const w = stageEl.clientWidth, h = stageEl.clientHeight;
   const top = 56; // room for the top bar and combo text
   // An odd-shaped board is centred on the rows it uses (its cells start at the top-left).
   const cells = game.topo.cageOf.flatMap((ci, c) => (ci >= 0 ? [c] : []));
   const rows = Math.max(...cells.map((c) => Math.floor(c / game!.n))) + 1, cols = Math.max(...cells.map((c) => c % game!.n)) + 1;
   const size = Math.max(120, Math.min((w - 40) * game.n / cols, (h - top - 24) * game.n / rows));
   const used = { w: size * cols / game.n, h: size * rows / game.n };
-  board.build(game, size, (w - used.w) / 2, top + (h - top - used.h) / 2);
-  bg.resize(w, h);
+  board.build(game, size, stageEl.offsetLeft + (w - used.w) / 2, stageEl.offsetTop + top + (h - top - used.h) / 2);
+  bg.resize(app.screen.width, app.screen.height);
 }
 
 function startGame(res: GenResult, saved?: GameSnapshot): void {
@@ -669,9 +672,44 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+// Two fingers on the board pinch to zoom. Window capture runs before the board's own handlers, so
+// the second finger never starts a drag.
+const fingers = new Map<number, { x: number; y: number }>();
+const fingerAt = (e: PointerEvent) => {
+  const r = app.canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+};
+window.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch' || e.target !== app.canvas) return;
+  fingers.set(e.pointerId, fingerAt(e));
+  if (fingers.size === 2) {
+    const [a, b] = [...fingers.values()];
+    board.pinchStart(a, b);
+  }
+}, true);
+window.addEventListener('pointermove', (e) => {
+  if (!fingers.has(e.pointerId)) return;
+  fingers.set(e.pointerId, fingerAt(e));
+  if (fingers.size >= 2) {
+    const [a, b] = [...fingers.values()];
+    board.pinchMove(a, b);
+  }
+}, true);
+const lift = (e: PointerEvent) => {
+  if (!fingers.delete(e.pointerId)) return;
+  if (fingers.size < 2) board.pinchEnd();
+};
+window.addEventListener('pointerup', lift, true);
+window.addEventListener('pointercancel', lift, true);
+
 app.renderer.on('resize', layout);
 // The HUD changes the stage's height after init (and on rotation), so watch the element itself.
-new ResizeObserver(() => app.resize()).observe(stageEl);
+const watch = new ResizeObserver(() => {
+  app.resize();
+  layout();
+});
+watch.observe(appEl);
+watch.observe(stageEl);
 
 // Mouse side buttons (4 = back, 5 = forward) do nothing here: they don't tap the board or pad, and
 // don't navigate away from the game. Caught first (capture on window) so nothing else sees them.
