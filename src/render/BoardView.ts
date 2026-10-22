@@ -50,7 +50,9 @@ export const noteColumns = (digits: number): number => (digits <= 4 ? 2 : digits
 
 // Line-fill mint (a drag that covers a whole row or column).
 const LINE = 0x7dffcf;
-const NEUTRAL = 0x8d97c2;
+const NEUTRAL = 0xe8edff;
+/** Width of a drag selection's outline. */
+const SEL_W = (cs: number) => Math.max(2, cs * 0.045);
 // Pair gold (k cells in one line sharing the same k maybes).
 const PAIR = 0xffd36b;
 // Moves Claude makes over the live link.
@@ -64,6 +66,8 @@ const CONFIRM = 0x8cff6b;
 const SELECT_RING = 0xff5a64;
 // Errors: clashes, wrong cages, chains broken by a mistake.
 const ERROR = 0xff4d6d;
+/** Chain labels on the board at once; more retire the oldest. */
+const COMBO_POOL = 5;
 
 /** Cells that must add up to `target`, found from a selection of whole + cages. */
 export interface HiddenCage {
@@ -429,7 +433,8 @@ export class BoardView extends Container {
   disproven = new Map<number, { label: string; digit: number }>();
   /** Tint maybes red that a number in their row or column already rules out (an option). */
   markBadNotes = true;
-  private comboText: Text | null = null;
+  /** Live chain labels on the board (at most COMBO_POOL): which cell each sits on, which chain it's from, and a fade-out factor. */
+  private combos: { t: Text; cell: number; r: ActionResult; k: number }[] = [];
   private chain: PlayingChain | null = null;
   /** The hidden values / ghost maybes the playing chain last drew (see refresh). */
   private playView: { hidden: Set<number>; ghost?: Map<number, number> } | null = null;
@@ -632,7 +637,7 @@ export class BoardView extends Container {
       }
     }
     for (const c of region) g.rect((c % n) * cs, Math.floor(c / n) * cs, cs, cs).fill({ color, alpha: 0.13 });
-    const w = Math.max(2.5, cs * 0.06);
+    const w = SEL_W(cs);
     for (const loop of cageLoops(region, n)) {
       g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color, alpha: 0.95, join: 'miter' });
     }
@@ -1290,7 +1295,8 @@ export class BoardView extends Container {
     this.tweens.clear();
     this.lighting?.clear();
     this.cancelHold();
-    this.comboText = null;
+    // Their texts go with removeChildren below.
+    this.combos = [];
     this.chain = null;
     this.drag = null;
     this.removeChildren().forEach((c) => {
@@ -1540,8 +1546,8 @@ export class BoardView extends Container {
           this.refresh(hiddenAfter(chain.played), ghostFrom(fadedUpTo + 1));
           if (i === last && this.chain === chain) this.chain = null;
         });
-        if (r.broken?.wave === i) this.brokenFx(r.broken.cells, i);
-        else if (i >= 2) this.combo(i);
+        if (r.broken?.wave === i) this.brokenFx(r.broken.cells, i, r);
+        else if (i >= 2) this.comboLabel(`CHAIN ×${i}`, [wave[0] ?? elims[0].cell], r.waves.slice(0, i + 2).flat(), r, CONFIRM);
         // The finish has its own single ripple, so the last cages don't add theirs.
         const finished = this.game.isSolved();
         for (const ci of touchedCages) if (this.game.cageStatus(ci) === 'ok') this.cageComplete(ci, i * 40, !finished);
@@ -1569,12 +1575,8 @@ export class BoardView extends Container {
     ghosts.forEach((g, i) => this.rewindCell(g.c, g.text, g.tint, REWIND, i * REWIND_STEP_MS));
     const restored = [...new Set(ch.r.eliminated.filter((e) => e.wave <= ch.played).map((e) => e.cell))];
     this.tweens.after(ghosts.length * REWIND_STEP_MS, () => this.restoreFx(restored.filter((c) => this.game.values[c] === EMPTY), 0));
-    // The combo banner and shake collapse with it.
-    const banner = this.comboText;
-    if (banner && !banner.destroyed) {
-      const from = banner.scale.x;
-      this.tweens.add({ duration: 200, ease: ease.outCubic, update: (t) => !banner.destroyed && (banner.scale.set(from * (1 - t)), (banner.alpha = 1 - t)) });
-    }
+    // Its chain labels and shake collapse with it.
+    for (const e of this.combos.filter((e) => e.r === ch.r)) this.retireCombo(e);
     this.shakeAmount = 0;
     return true;
   }
@@ -1783,9 +1785,9 @@ export class BoardView extends Container {
 
   /**
    * An error stopped the chain: the cells involved flash red and spit red sparks, the board jolts and
-   * its frame flushes red, and (if the chain had got going) a "CHAIN BROKEN" banner drops in.
+   * its frame flushes red, the chain's labels turn red, and (if it had got going) a "CHAIN BROKEN" label pops up.
    */
-  private brokenFx(cells: number[], wave: number): void {
+  private brokenFx(cells: number[], wave: number, r: ActionResult): void {
     const cs = this.cs;
     for (const c of cells) {
       const view = this.cellViews[c];
@@ -1803,35 +1805,49 @@ export class BoardView extends Container {
     const frame = this.frame;
     const rest = frame.tint;
     this.tweens.add({ duration: 600, ease: ease.outCubic, update: (t) => !frame.destroyed && (frame.tint = mix(0xff5a6e, rest as number, t)) });
-    if (wave >= 1) this.banner('CHAIN BROKEN', ERROR, 0.48, 0xff2d4a);
+    // The chain's labels go red and stay red as they fade (their glow is white ink, so the tint carries it).
+    for (const e of this.combos) if (e.r === r) e.t.tint = ERROR;
+    if (wave >= 1 && cells.length) this.comboLabel('CHAIN BROKEN', cells, r.waves.flat(), r, ERROR);
   }
 
-  private combo(wave: number): void {
-    this.banner(`CHAIN ×${wave}`, WAVE_COLORS[Math.min(wave, WAVE_COLORS.length - 1)][0], 0.5 + wave * 0.06, 0xff5cc8);
-  }
-
-  /** A banner above the board that pops in, drifts up and fades. */
-  private banner(text: string, tint: number, size: number, glow: number): void {
-    // Hide (don't destroy) the previous banner; its own tween still owns it and destroys it when done.
-    if (this.comboText) this.comboText.visible = false;
-    const t = new Text({ text, style: { fontFamily: FONT, fontSize: this.cs * size, fill: 0xffffff, fontWeight: '900', dropShadow: { color: glow, blur: 12, distance: 0, alpha: 0.9 } } });
+  /**
+   * A small glowing chain label on the board, beside `near` but off the chain's own cells (`busy`), holes
+   * and other labels. Up to COMBO_POOL live at once; a new one retires the oldest. Pops in, drifts, fades.
+   */
+  private comboLabel(text: string, near: number[], busy: number[], r: ActionResult, tint: number): void {
+    const cs = this.cs, n = this.game.n;
+    if (this.combos.length >= COMBO_POOL) this.retireCombo(this.combos[0]);
+    const avoid = new Set([...busy, ...this.combos.map((e) => e.cell)]);
+    this.game.topo.cageOf.forEach((ci, c) => ci < 0 && avoid.add(c));
+    const spot = this.pillSpot(near, avoid);
+    // White ink and a white glow, so the tint colours both (and can turn them red later).
+    const t = new Text({ text, style: { fontFamily: FONT, fontSize: Math.max(11, cs * 0.34), fill: 0xffffff, fontWeight: '900', letterSpacing: cs * 0.05, dropShadow: { color: 0xffffff, blur: cs * 0.12, distance: 0, alpha: 0.8 } } });
     t.anchor.set(0.5);
-    t.position.set((this.game.n * this.cs) / 2, -this.cs * 0.6);
+    t.position.set(spot.x, spot.y);
     t.tint = tint;
     this.addChild(t);
-    this.comboText = t;
+    const e = { t, cell: Math.floor(spot.y / cs) * n + Math.floor(spot.x / cs), r, k: 1 };
+    this.combos.push(e);
+    this.flashLight([[spot.x, spot.y, spot.x, spot.y]], tint, 450, cs * 0.4, 0.5);
     this.tweens.add({
-      duration: 900, ease: ease.linear,
+      duration: 1100, ease: ease.linear,
       update: (p) => {
-        t.scale.set(ease.outBack(Math.min(1, p * 3)));
-        t.alpha = p < 0.6 ? 1 : 1 - (p - 0.6) / 0.4;
-        t.y = -this.cs * (0.6 + p * 0.3);
+        if (t.destroyed) return;
+        t.scale.set(e.k * ease.outBack(Math.min(1, p * 4)));
+        t.alpha = 0.8 * e.k * (p < 0.65 ? 1 : 1 - (p - 0.65) / 0.35);
+        t.y = spot.y - cs * 0.25 * p;
       },
       done: () => {
-        if (this.comboText === t) this.comboText = null;
-        t.destroy();
+        this.combos = this.combos.filter((x) => x !== e);
+        if (!t.destroyed) t.destroy();
       },
     });
+  }
+
+  /** A chain label leaves early (pool full, or its chain was undone): it shrinks and fades out quickly. */
+  private retireCombo(e: BoardView['combos'][number]): void {
+    this.combos = this.combos.filter((x) => x !== e);
+    this.tweens.add({ duration: 200, ease: ease.outCubic, update: (v) => (e.k = Math.min(e.k, 1 - v)) });
   }
 
   celebrate(from: number): void {
@@ -1976,7 +1992,8 @@ export class BoardView extends Container {
     const path = () => this.drag?.path ?? this.lockedSel?.path ?? [];
     this.lighting?.add({
       segments: [],
-      segmentsAt: () => this.loopSegments(cageLoops(path(), n), -this.cs * 0.04),
+      // Shines from just inside the outline: the stroke is lit, the cells it surrounds stay clear.
+      segmentsAt: () => this.loopSegments(cageLoops(path(), n), SEL_W(this.cs)),
       color: 0xdfe8ff, radius: this.cs * 0.3, mask: true,
       level: () => glow.level * 0.24 + glow.flash,
       alive: () => this.dragGlow === glow && path().length > 0,
@@ -1984,7 +2001,7 @@ export class BoardView extends Container {
     // The leftover cells glow amber (green when they pin a digit).
     this.lighting?.add({
       segments: [],
-      segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), -this.cs * 0.04) : []),
+      segmentsAt: () => (this.ghost ? this.loopSegments(cageLoops(this.ghost.cells, n), Math.max(2, this.cs * 0.045)) : []),
       color: HIDDEN, radius: this.cs * 0.26, mask: true,
       level: () => (this.ghost ? glow.level * 0.15 : 0),
       alive: () => this.dragGlow === glow && path().length > 0,
@@ -2022,7 +2039,7 @@ export class BoardView extends Container {
     if (!path.length) return;
     const cs = this.cs, n = this.game.n;
     for (const c of path) g.rect((c % n) * cs, Math.floor(c / n) * cs, cs, cs).fill({ color: NEUTRAL, alpha: 0.13 });
-    const w = Math.max(2.5, cs * 0.06);
+    const w = SEL_W(cs);
     for (const loop of cageLoops(path, n)) g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color: NEUTRAL, alpha: 0.95, join: 'miter' });
     this.ghost = this.showRegionSum(path);
     if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
