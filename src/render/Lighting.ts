@@ -216,6 +216,11 @@ export class Lighting {
   /** Board-local rectangles [x0, y0, x1, y1] that no light reaches, asked for every frame. */
   maskRects: () => number[][] = () => [];
   private sources: Source[] = [];
+
+  /** A timed light is playing (lasting ones are steady once their flash is over), or the fog drifts. */
+  get animating(): boolean {
+    return this.u.uFog > 0 || this.sources.some((s) => s.duration !== Infinity);
+  }
   private cs = 40;
   private buttons: HTMLElement[] = [];
 

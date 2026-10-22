@@ -1396,7 +1396,16 @@ export class BoardView extends Container {
    * they're about to get, and `ghost` (cell → digit mask) keeps maybes on screen that the game has
    * already removed but whose wave hasn't played yet.
    */
+  /** Something on the board changed (main keeps drawing it live for a moment). */
+  onChange?: () => void;
+
+  /** Something on the board is moving: a drag, pinch, chain, hold, ring or bump. */
+  get busy(): boolean {
+    return !!(this.drag || this.pinch || this.pillDrag || this.chain || this.hold || this.shakeAmount > 0.1 || this.bump !== 1) || this.selRings.some((r) => r.t < 1);
+  }
+
   refresh(hiddenArg?: Set<number>, ghostArg?: Map<number, number>): void {
+    this.onChange?.();
     if (!this.game) return;
     // While a chain is playing, a plain redraw (selecting a cell, a highlight) keeps the animation's
     // in-progress view instead of jumping to the final board.

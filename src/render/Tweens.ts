@@ -26,6 +26,11 @@ interface Tween {
 export class Tweens {
   private list: Tween[] = [];
 
+  /** Anything still playing (or waiting to). */
+  get busy(): boolean {
+    return this.list.length > 0;
+  }
+
   add(o: { duration: number; delay?: number; ease?: Ease; update: (v: number) => void; start?: () => void; done?: () => void }): void {
     this.list.push({ elapsed: 0, delay: o.delay ?? 0, duration: o.duration, ease: o.ease ?? ease.outCubic, update: o.update, done: o.done, start: o.start, started: false });
   }

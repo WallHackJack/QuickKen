@@ -1,7 +1,7 @@
 import './ui/style.css';
 import { cageFactors } from './game/factor';
 import { cageLabel } from './engine/puzzle';
-import { Application, Container } from 'pixi.js';
+import { Application, Container, Graphics, UPDATE_PRIORITY } from 'pixi.js';
 import { maskIndices } from './engine/bits';
 import { DIGIT_PRESETS } from './engine/digits';
 import type { GenOptions, GenResult } from './engine/generator';
@@ -37,12 +37,21 @@ const tweens = new Tweens();
 const particles = new Particles();
 const bg = new Background();
 const board = new BoardView(tweens, particles, bg);
-// Background and board are one scene: the lighting/ripple pass runs over both at once.
+// The background draws every frame (its clouds drift). The board and its lighting pass sit on top in
+// `cache`, which is kept as one texture while nothing on the board moves, so an idle frame costs the
+// clouds and a single blit. The lighting runs over a transparent layer: off the board its glow adds
+// onto the clouds underneath.
 const scene = new Container();
-scene.filterArea = app.screen;
-scene.addChild(bg.mesh, board);
+const cache = new Container();
+const lit = new Container();
+lit.filterArea = app.screen;
+// A near-invisible full-screen rect, so the cached texture spans the whole screen (glows reach past the board).
+const span = new Graphics();
+lit.addChild(span, board);
+cache.addChild(lit);
+scene.addChild(bg.mesh, cache);
 app.stage.addChild(scene);
-board.lighting = new Lighting(scene, board, app.canvas, hudEl, bg.ripples);
+board.lighting = new Lighting(lit, board, app.canvas, hudEl, bg.ripples);
 board.lighting.maskRects = () => board.selectionMask();
 
 let game: Game | null = null;
@@ -376,6 +385,8 @@ function layout(): void {
   const used = { w: size * cols / game.n, h: size * rows / game.n };
   board.build(game, size, stageEl.offsetLeft + (w - used.w) / 2, stageEl.offsetTop + top + (h - top - used.h) / 2);
   bg.resize(app.screen.width, app.screen.height);
+  span.clear().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x000000, alpha: 0.001 });
+  poke();
 }
 
 function startGame(res: GenResult, saved?: GameSnapshot): void {
@@ -807,6 +818,29 @@ app.ticker.add((tk) => {
   board.update(dt);
   if (game && !solvedAt) hud.setTime((performance.now() - startTime) / 1000);
 });
+
+// Live vs cached board: input, board changes and anything animating keep it live (for a moment after,
+// so flashes and fades finish); otherwise it's drawn once into a texture and reused.
+let liveUntil = 0;
+function poke(): void {
+  liveUntil = performance.now() + 1500;
+}
+board.onChange = poke;
+for (const type of ['pointerdown', 'pointermove', 'pointerup', 'keydown', 'wheel']) window.addEventListener(type, poke, { capture: true, passive: true });
+let cached = false;
+const boardLive = () => performance.now() < liveUntil || tweens.busy || particles.count > 0 || bg.ripples.active || board.busy || !!board.lighting?.animating;
+app.ticker.add(() => {
+  const live = boardLive();
+  if (live === !cached) return;
+  cached = !live;
+  cache.cacheAsTexture(cached ? { resolution: app.renderer.resolution, antialias: true } : false);
+});
+// Draw only when something can have changed: always while the clouds drift, else only while the
+// board is live (Low graphics, idle: no frames at all).
+app.ticker.remove(app.render, app);
+app.ticker.add(() => {
+  if (!bg.still || !cached) app.render();
+}, undefined, UPDATE_PRIORITY.LOW);
 
 // Frame rate in the top bar, twice a second.
 let fpsTimer = 0;

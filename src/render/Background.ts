@@ -137,7 +137,8 @@ export class Background {
     this.uniforms.uTime = this.time;
     this.uniforms.uEnergy = Math.min(1.5, this.energy);
     this.uniforms.uMaybe = this.maybe;
-    this.lightning(dt);
+    // Still clouds (Low graphics) get no lightning either: nothing changes, so nothing is redrawn.
+    if (!this.still) this.lightning(dt);
   }
 
   /**
