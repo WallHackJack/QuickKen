@@ -1347,6 +1347,9 @@ export class BoardView extends Container {
     // A different puzzle (or a revised one): marks from the old one don't carry over.
     if (this.game !== game) {
       this.disproven.clear();
+      // Check marks and hint cells belong to the old board.
+      this.errorCells.clear();
+      this.hintCells.clear();
       this.guessOrigin = null;
       this.olderGuessOrigins = [];
     }
