@@ -886,13 +886,7 @@ export class BoardView extends Container {
       this.refresh();
       this.onSelectionChange?.([...d.path], prev);
       // A leftover that pins a digit is entered on release, locked or not.
-      const pin = this.ghost;
-      const digit = this.confirmDigit(pin);
-      if (pin && digit >= 0) {
-        this.onConfirmCell?.(pin.cells[0], digit);
-        // Its cell is filled now: redraw the kept selection without that leftover.
-        if (this.lockedSel) this.drawLocked();
-      }
+      this.enterPinned();
       return;
     }
     if (this.sumPill && !this.sumPill.destroyed) this.sumPill.visible = false;
@@ -2211,6 +2205,8 @@ export class BoardView extends Container {
       this.dragGlow.flash = Math.max(this.dragGlow.flash, 0.5);
       this.ripple([[[cell % this.game.n, Math.floor(cell / this.game.n)], [cell % this.game.n + 1, Math.floor(cell / this.game.n)], [cell % this.game.n + 1, Math.floor(cell / this.game.n) + 1], [cell % this.game.n, Math.floor(cell / this.game.n) + 1]]], 0.25, undefined, NEUTRAL);
       this.onSelectionChange?.([...this.lockedSel.path], prev);
+      // The grown selection may now pin a digit: enter it, as releasing a drag does.
+      this.enterPinned();
       return;
     }
     if (!pd.moved || pd.main) {
@@ -2233,6 +2229,15 @@ export class BoardView extends Container {
     this.pillSpots.set(pd.main ? 'main' : (pd.pill.label ?? ''), { x: pd.pill.x, y: pd.pill.y });
     const gp = this.toGlobal(pd.pill.position);
     this.bg.ripples.add([[gp.x, gp.y, gp.x, gp.y]], 0.3);
+  }
+
+  /** A kept selection's leftover that pins one cell's digit: enter it, then redraw without it. */
+  private enterPinned(): void {
+    const pin = this.ghost;
+    const digit = this.confirmDigit(pin);
+    if (!pin || digit < 0) return;
+    this.onConfirmCell?.(pin.cells[0], digit);
+    if (this.lockedSel) this.drawLocked();
   }
 
   /** The dashed line from the main pill to the finger, and the cell it would add. */
