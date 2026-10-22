@@ -579,9 +579,18 @@ export class Game {
    */
   regionTotal(region: number[], mode: 'sum' | 'product'): number | null {
     const { cages } = this.puzzle;
-    const inRegion = new Set(region);
+    const vals = this.puzzle.digits.values;
     let total = mode === 'sum' ? 0 : 1;
-    for (const ci of new Set(region.map((c) => this.topo.cageOf[c]))) {
+    // A complete row or column holds every digit once: its total is known whatever its cages are.
+    // Those cells are taken out first; the cages only have to account for the rest.
+    let rest = region;
+    for (const house of this.topo.houses) {
+      if (!house.complete || !house.cells.every((c) => rest.includes(c))) continue;
+      total = mode === 'sum' ? total + vals.reduce((a, b) => a + b, 0) : total * vals.reduce((a, b) => a * b, 1);
+      rest = rest.filter((c) => !house.cells.includes(c));
+    }
+    const inRegion = new Set(rest);
+    for (const ci of new Set(rest.map((c) => this.topo.cageOf[c]))) {
       const cage = cages[ci];
       const part = cage.cells.filter((c) => inRegion.has(c));
       const whole = part.length === cage.cells.length;

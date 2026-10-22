@@ -327,6 +327,18 @@ describe('Game', () => {
     expect(g.regionTotal(region, 'product')).toBe(muls[0].target * muls[1].target);
   });
 
+  it('a complete row counts as known, whatever its cages', () => {
+    const g = new Game(puzzle);
+    const n = puzzle.size;
+    const row = Array.from({ length: n }, (_, j) => j);
+    const vals = puzzle.digits.values;
+    expect(g.regionTotal(row, 'sum')).toBe(vals.reduce((a, b) => a + b, 0));
+    expect(g.regionTotal(row, 'product')).toBe(vals.reduce((a, b) => a * b, 1));
+    // Plus a filled cell beside it: its digit adds on.
+    g.setValue(n, sol[n]);
+    expect(g.regionTotal([...row, n], 'sum')).toBe(vals.reduce((a, b) => a + b, 0) + vals[sol[n]]);
+  });
+
   it('a settled sum is always the true sum (each cage holding its solution digits as maybes)', () => {
     const g = new Game(puzzle);
     const vals = puzzle.digits.values;
