@@ -663,8 +663,8 @@ export class BoardView extends Container {
     // The hidden cage those sums imply, outlined as boldly as the selection.
     // A leftover that pins one cell's digit is green: releasing enters it.
     if (this.ghost) this.drawHidden(g, this.ghost.cells, confirm ? CONFIRM : HIDDEN);
-    // The leftover's target is in the selection's pill now, not a pill of its own.
-    this.setGhostLabels(null);
+    // The leftover's target is in the selection's pill; only a pinned digit gets a pill of its own.
+    this.setGhostLabels(confirm ? this.ghost : null);
     this.refresh();
   }
 
@@ -724,7 +724,8 @@ export class BoardView extends Container {
     if (!pill || pill.destroyed) return info?.hidden ?? null;
     // One pill, top to bottom: the leftover's target (pink, or green when it pins a digit), the
     // selection's total (blue), and the whole lines' total it comes from (grey, e.g. 63 for three rows of 21).
-    const hidden = info?.hidden ?? null;
+    // A leftover that pins one digit shows as its own small green pill on that cell instead.
+    const hidden = info?.hidden && this.confirmDigit(info.hidden) < 0 ? info.hidden : null;
     const left = pill.getChildAt(3) as Text;
     left.visible = !!hidden;
     if (hidden) {
@@ -855,7 +856,8 @@ export class BoardView extends Container {
       const w = Math.min(cs * 0.9, text.width + cs * 0.22), hgt = text.height + cs * 0.08;
       const bg = new Graphics().roundRect(-w / 2, -hgt / 2, w, hgt, hgt / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke({ width: 2, color: edge, alpha: 0.95 });
       pill.addChild(bg, text);
-      const spot = this.pillSpots.get(pill.label) ?? this.pillSpot(piece, taken);
+      // A pinned digit sits right on its cell (the last space left).
+      const spot = this.pillSpots.get(pill.label) ?? (single ? this.cellCenter(h.cells[0]) : this.pillSpot(piece, taken));
       pill.position.set(spot.x, spot.y);
       taken.add(this.cellAt(spot.x, spot.y));
       pill.scale.set(0.5);
@@ -883,6 +885,14 @@ export class BoardView extends Container {
       this.drawLocked();
       this.refresh();
       this.onSelectionChange?.([...d.path], prev);
+      // A leftover that pins a digit is entered on release, locked or not.
+      const pin = this.ghost;
+      const digit = this.confirmDigit(pin);
+      if (pin && digit >= 0) {
+        this.onConfirmCell?.(pin.cells[0], digit);
+        // Its cell is filled now: redraw the kept selection without that leftover.
+        if (this.lockedSel) this.drawLocked();
+      }
       return;
     }
     if (this.sumPill && !this.sumPill.destroyed) this.sumPill.visible = false;
@@ -2166,8 +2176,9 @@ export class BoardView extends Container {
     const w = SEL_W(cs);
     for (const loop of cageLoops(path, n)) g.poly(insetLoop(loop, w / 2 / cs).flatMap(([x, y]) => [x * cs, y * cs]), true).stroke({ width: w, color: NEUTRAL, alpha: 0.95, join: 'miter' });
     this.ghost = this.showRegionSum(path);
-    if (this.ghost) this.drawHidden(g, this.ghost.cells, this.confirmDigit(this.ghost) >= 0 ? CONFIRM : HIDDEN);
-    this.setGhostLabels(null);
+    const pins = this.confirmDigit(this.ghost) >= 0;
+    if (this.ghost) this.drawHidden(g, this.ghost.cells, pins ? CONFIRM : HIDDEN);
+    this.setGhostLabels(pins ? this.ghost : null);
     this.refresh();
   }
 
