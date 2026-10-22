@@ -62,7 +62,8 @@ void main() {
   // Lightning: lights the clouds from behind, brightest where the fog is thick.
   if (uFlash.z > 0.0) {
     float d = length(px - uFlash.xy) / min(uResolution.x, uResolution.y);
-    col += uFlashColor * uFlash.z * exp(-d * d * 5.0) * (0.15 + 2.2 * n * n);
+    // uFlash.w: the strike's size (big ones light a wider patch of cloud).
+    col += uFlashColor * uFlash.z * exp(-d * d * 5.0 / max(uFlash.w, 0.1)) * (0.15 + 2.2 * n * n);
   }
   // Clouds hidden (H key): just the deep backdrop.
   col = mix(deep, col, uClouds);
@@ -142,8 +143,8 @@ export class Background {
   }
 
   /**
-   * Every few seconds a strike lights the clouds somewhere: white-pink or yellow, a quick flicker of
-   * one to three pulses, like lightning behind thick cloud.
+   * Every couple of seconds a strike lights the clouds somewhere: white-pink or yellow, a quick flicker
+   * of one to five pulses (more are rarer), like lightning behind thick cloud. Now and then a big one.
    */
   private lightning(dt: number): void {
     const b = this.bolt;
@@ -157,8 +158,12 @@ export class Background {
       b.y = h * (0.05 + Math.random() * 0.9);
       b.age = 0;
       // [start s, strength] pulses.
-      const pulses = 1 + Math.floor(Math.random() * 3);
-      b.pattern = Array.from({ length: pulses }, (_, i) => [i * (0.09 + Math.random() * 0.12), (i ? 0.5 : 1) * (0.5 + Math.random() * 0.5)] as [number, number]);
+      const pulses = 1 + Math.floor(Math.random() ** 1.6 * 5);
+      // About one strike in eight is big: brighter and wider.
+      const big = Math.random() < 0.12;
+      const power = big ? 1.7 : 1;
+      flash[3] = big ? 2.6 : 1;
+      b.pattern = Array.from({ length: pulses }, (_, i) => [i * (0.07 + Math.random() * 0.12), power * (i ? 0.4 + Math.random() * 0.4 : 1) * (0.5 + Math.random() * 0.5)] as [number, number]);
       const col = this.uniforms.uFlashColor as Float32Array;
       col.set(Math.random() < 0.5 ? [1, 0.82, 0.95] : [1, 0.92, 0.45]);
     }
@@ -171,7 +176,7 @@ export class Background {
     flash[2] = level * 0.9;
     if (b.age > (b.pattern.at(-1)?.[0] ?? 0) + 0.4) {
       b.age = -1;
-      b.wait = 3 + Math.random() * 7;
+      b.wait = 1.5 + Math.random() * 4;
     }
   }
 }
