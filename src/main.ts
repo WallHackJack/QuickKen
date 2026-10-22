@@ -792,6 +792,15 @@ app.ticker.add((tk) => {
   if (game && !solvedAt) hud.setTime((performance.now() - startTime) / 1000);
 });
 
+// Frame rate in the top bar, twice a second.
+let fpsTimer = 0;
+app.ticker.add((tk) => {
+  fpsTimer += tk.deltaMS;
+  if (fpsTimer < 500) return;
+  fpsTimer = 0;
+  hud.fpsEl.textContent = `${Math.round(app.ticker.FPS)} fps`;
+});
+
 bg.resize(app.screen.width, app.screen.height);
 // Boot: resume the saved game when the published page has a database, else start a fresh puzzle.
 hud.say('Loading…');

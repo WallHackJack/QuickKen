@@ -56,15 +56,18 @@ export class Hud {
   private layer = 0;
   private meta: HTMLElement;
   private timerEl: HTMLElement;
+  /** Frame rate readout in the top bar. */
+  readonly fpsEl: HTMLElement;
 
   constructor(root: HTMLElement, stage: HTMLElement, private h: HudHandlers) {
     this.el = root;
     const top = document.createElement('div');
     top.className = 'topbar';
-    top.innerHTML = `<button class="title" data-k="options" aria-label="Options">QUICKKEN</button><span class="meta"></span><span class="spacer"></span><span class="timer">0:00</span><button data-k="new">New</button>`;
+    top.innerHTML = `<button class="title" data-k="options" aria-label="Options">QUICKKEN</button><span class="meta"></span><span class="spacer"></span><span class="fps"></span><span class="timer">0:00</span><button data-k="new">New</button>`;
     stage.appendChild(top);
     this.meta = top.querySelector('.meta')!;
     this.timerEl = top.querySelector('.timer')!;
+    this.fpsEl = top.querySelector('.fps')!;
     top.querySelector<HTMLButtonElement>('[data-k=new]')!.onclick = () => this.dialog.showModal();
     top.querySelector<HTMLButtonElement>('[data-k=options]')!.onclick = () => this.optionsDialog.showModal();
 
