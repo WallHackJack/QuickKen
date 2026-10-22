@@ -102,6 +102,7 @@ export class Background {
           uResolution: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uFlash: { value: new Float32Array([0, 0, 0, 0]), type: 'vec4<f32>' },
           uFlashColor: { value: new Float32Array([1, 1, 1]), type: 'vec3<f32>' },
+          // On by default; H cycles them with the board fog.
           uClouds: { value: 1, type: 'f32' },
         },
       },

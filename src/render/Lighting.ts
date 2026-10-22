@@ -98,10 +98,17 @@ void main(void) {
   vec2 uv = vTextureCoord - rip.xy * 12.0 * uRipScale * uInputSize.zw;
   vec4 base = texture(uTexture, uv);
 
-  // Height = brightness. Its slope gives a surface normal, so strokes have bevelled edges.
+  // Height = brightness, read like a normal map at two scales. The fine slope bevels stroke edges; the
+  // broad one (a box-blurred slope) domes the whole glyph, so light reaches into a character and the
+  // side facing the light catches more of it.
   vec2 o = uInputSize.zw * max(1.0, uCell * 0.022);
   vec2 grad = vec2(lum(uv + vec2(o.x, 0.0)) - lum(uv - vec2(o.x, 0.0)), lum(uv + vec2(0.0, o.y)) - lum(uv - vec2(0.0, o.y)));
-  vec3 N = normalize(vec3(-grad * 2.4, 1.0));
+  vec2 w1 = o * 1.6, w2 = o * 3.2;
+  vec2 broad = vec2(
+    lum(uv + vec2(w1.x, 0.0)) + lum(uv + vec2(w2.x, 0.0)) - lum(uv - vec2(w1.x, 0.0)) - lum(uv - vec2(w2.x, 0.0)),
+    lum(uv + vec2(0.0, w1.y)) + lum(uv + vec2(0.0, w2.y)) - lum(uv - vec2(0.0, w1.y)) - lum(uv - vec2(0.0, w2.y)));
+  // Kept gentle: steep normals on anti-aliased glyph edges lit up as coloured fringes.
+  vec3 N = normalize(vec3(-(grad * 0.8 + broad * 0.5), 1.0));
   float h = dot(base.rgb, vec3(0.3, 0.59, 0.11));
   // Only pixels of a stroke (digits, text, lines) are a lit surface. The slope also exists on the dark
   // pixels just outside a stroke; lighting those drew a rim a pixel or two off every glyph.
@@ -111,6 +118,10 @@ void main(void) {
   float best = 1e12;
   vec2 q = p;
   bool inside = false;
+  // How much of the view the outline wraps around p (sum of the angles its segments subtend):
+  // 2π inside, falling off smoothly with distance outside. It floods light out from the whole shape
+  // rather than from its nearest point, which made the glow follow the outline like a box.
+  float ang = 0.0;
   for (int s = 0; s < ${MAX_SRC}; s++) {
     if (float(s) >= uCount) break;
     vec4 src = uSrc[s];   // rgb * level, radius
@@ -124,28 +135,36 @@ void main(void) {
       vec2 c = sg.xy + ab * t;
       float d2 = dot(p - c, p - c);
       if (d2 < best) { best = d2; q = c; }
+      vec2 pa = sg.xy - p, pb = sg.zw - p;
+      ang += abs(atan(pa.x * pb.y - pa.y * pb.x, dot(pa, pb)));
       // Crossing test: segments form closed loops, so this tells whether p is inside the outline.
       if ((sg.y > p.y) != (sg.w > p.y) && p.x < sg.x + (p.y - sg.y) * ab.x / ab.y) inside = !inside;
     }
     // The shape goes on in the next slot: light it once, after all of its segments.
     if (s + 1 < ${MAX_SRC} && float(s + 1) < uCount && mod(uRange[s + 1].y, 2.0) > 0.5) continue;
     float inAtt = rg.y > 1.5 ? 0.0 : 0.35, inHalo = rg.y > 1.5 ? 0.0 : 0.3;
-    float r = src.w;
+    // Reach: 1.5× each light's radius (lights and their glow carry well past their own cage).
+    float r = src.w * 1.5;
     // Smooth inverse-square falloff that ends cleanly instead of fogging the whole board. The light
     // shines outward from the outline: inside it, it's much weaker.
     float att = 1.0 / (1.0 + best / (r * r));
-    att *= (1.0 - smoothstep(r * 2.0, r * 4.5, sqrt(best))) * (inside ? inAtt : 1.0);
+    att *= (1.0 - smoothstep(r * 2.5, r * 6.0, sqrt(best))) * (inside ? inAtt : 1.0);
     // The light hangs just above the board; shade toward its nearest point.
     vec3 L = normalize(vec3(q - p, rg.z));
     diff += src.rgb * att * max(dot(N, L), 0.0);
     vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
     spec += src.rgb * att * pow(max(dot(N, H), 0.0), 16.0);
-    halo += src.rgb * exp(-best / (2.0 * rg.w * rg.w)) * (inside ? inHalo : 1.0);
+    // A tight band along the outline, plus the flood: about as bright at the edge as before, reaching
+    // several cells further.
+    float flood = min(ang / 6.2832, 1.0);
+    float reach = 1.0 - smoothstep(r * 3.0, r * 9.0, sqrt(best));
+    halo += src.rgb * (0.75 * exp(-best / (2.0 * rg.w * rg.w)) + 0.9 * pow(flood, 1.4) * reach) * (inside ? inHalo : 1.0);
     // Light reaching the air here (for the fog).
     air += src.rgb * att;
     best = 1e12;
     q = p;
     inside = false;
+    ang = 0.0;
   }
 
   // Masked areas (a drag selection's cells) sit above the light: none of it reaches them.
@@ -158,15 +177,26 @@ void main(void) {
   // Strokes are glossy: they reflect mostly the light's colour, not their own. The dark board only
   // picks up a little of it.
   vec3 albedo = mix(base.rgb, vec3(h), 0.6 * stroke);
-  vec3 lit = base.rgb + albedo * diff * (0.6 + 1.4 * stroke) + spec * 0.9 * stroke * h + halo * 0.35;
+  // Strong on purpose: with the fog off (the default) this is all the light the board gets.
+  // ponytail: stroke lighting (digits, walls) is switched off until it reads cleanly; 1.0 brings it back.
+  const float strokeLight = 0.0;
+  vec3 lit = base.rgb + albedo * diff * (1.8 + 1.4 * stroke * strokeLight) + spec * 0.5 * stroke * h * strokeLight + halo * 1.1;
   // Fog over the board: barely there on its own, but lights scatter in it strongly.
   float f = fog(p) * uFog;
   lit += vec3(0.025, 0.03, 0.05) * f * base.a + air * f * 1.9;
   // Crests catch light, troughs fall into shade, and slopes facing the top-left glint.
   lit *= 1.0 + rip.z * 0.25;
   lit += ripTint * (max(rip.z, 0.0) * 0.12 + max(dot(rip.xy, vec2(-0.7, -0.7)), 0.0) * 0.8);
-  // Over-bright light runs to white instead of clipping to a flat colour.
-  lit += max(max(max(lit.r, lit.g), lit.b) - 1.0, 0.0) * 0.6;
+  // Lit strokes take on the light's colour (a white digit under red light turns red) instead of
+  // washing out to white.
+  // From the light reaching this spot (not the shaded amount), so a whole glyph takes one even colour.
+  float dl = max(max(air.r, air.g), air.b);
+  // Even faint light colours a digit clearly, so the glow reads on numbers outside the lit cage.
+  float tint = stroke * clamp(dl * 3.0, 0.0, 0.8) * strokeLight;
+  // Capped so a bright light colours the digit fully without blowing out to a flat glare.
+  lit = mix(lit, h * (air / max(dl, 1e-4)) * (1.0 + min(dl, 0.5)), tint);
+  // Over-bright light runs to white instead of clipping to a flat colour (less so on tinted strokes).
+  lit += max(max(max(lit.r, lit.g), lit.b) - 1.0, 0.0) * 0.6 * (1.0 - tint);
   // Alpha stays the board's: off the board the halo is purely additive.
   finalColor = vec4(min(lit, vec3(1.0)), base.a);
 }`;
@@ -205,12 +235,15 @@ export class Lighting {
           uCount: { value: 0, type: 'f32' },
           uCell: { value: 40, type: 'f32' },
           uTime: { value: 0, type: 'f32' },
-          uFog: { value: 1, type: 'f32' },
+          // Off by default (H turns it on): lights read better on the clear board.
+          uFog: { value: 0, type: 'f32' },
           uMask: { value: new Float32Array(MAX_MASK * 4), type: 'vec4<f32>', size: MAX_MASK },
           uMaskCount: { value: 0, type: 'f32' },
         },
       },
       resolution: 'inherit',
+      // Filters render unantialiased by default, which left edges and small text jagged on big screens.
+      antialias: 'inherit',
     });
     this.u = this.filter.resources.light.uniforms;
   }
@@ -224,10 +257,9 @@ export class Lighting {
   /** Off (G key): no lighting pass at all. */
   enabled = true;
 
-  /** Show or hide the fog over the board (H key: a clear look at the lights). */
-  toggleFog(): boolean {
-    this.u.uFog = this.u.uFog ? 0 : 1;
-    return this.u.uFog > 0;
+  /** Show or hide the fog over the board (H key cycles it with the background clouds). */
+  setFog(on: boolean): void {
+    this.u.uFog = on ? 1 : 0;
   }
 
   add(spec: LightSpec, duration: number): void {
@@ -276,7 +308,7 @@ export class Lighting {
           const part = segs.slice(k * LIGHT_SEGS, (k + 1) * LIGHT_SEGS);
           part.forEach((sg, i) => uSeg.set(sg, (src * LIGHT_SEGS + i) * 4));
           uSrc.set([rgb[0] * level, rgb[1] * level, rgb[2] * level, s.radius], src * 4);
-          uRange.set([part.length, (k > 0 ? 1 : 0) + (s.mask ? 2 : 0), cs * 0.3, cs * 0.2], src * 4);
+                    uRange.set([part.length, (k > 0 ? 1 : 0) + (s.mask ? 2 : 0), cs * 0.3, cs * 0.2], src * 4);
         }
         lights.push({ segs, rgb, level });
       }

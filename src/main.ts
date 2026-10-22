@@ -45,6 +45,8 @@ board.lighting.maskRects = () => board.selectionMask();
 
 let game: Game | null = null;
 let notesMode = false;
+/** Smoke layers shown (H cycles): 0 none, 1 the background clouds, 2 clouds and the board fog. */
+let smokeLayers = 1;
 /** The previous input put this digit in as the cell's first maybe (pressing it again makes it the number). */
 let firstMaybe: { cell: number; digit: number } | null = null;
 /** The cell a digit-pad sweep is filling (or clearing), its maybes before the sweep, and whether a step is applied. */
@@ -645,9 +647,11 @@ window.addEventListener('keydown', (e) => {
   }
   else if (plain && key === 'h' && e.shiftKey) handlers.hint();
   else if (plain && key === 'h') {
-    const on = board.lighting?.toggleFog() ?? true;
-    bg.setClouds(on);
-    hud.say(on ? 'Fog and clouds on.' : 'Fog and clouds off (H brings them back).');
+    // Off → back layer (clouds) → both layers (clouds + board fog) → off.
+    smokeLayers = (smokeLayers + 1) % 3;
+    bg.setClouds(smokeLayers >= 1);
+    board.lighting?.setFog(smokeLayers === 2);
+    hud.say(['Smoke off.', 'Smoke: back layer (clouds).', 'Smoke: both layers (clouds and fog).'][smokeLayers]);
   }
   // Q W E / A S D enter digits like the pad's layout; Shift makes it a maybe, as with number keys.
   else if (letterDigit >= 0) (rules().goal ? handlers.digit(letterDigit) : digitAction(s, letterDigit, notesMode !== e.shiftKey));

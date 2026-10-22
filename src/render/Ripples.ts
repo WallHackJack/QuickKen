@@ -29,14 +29,16 @@ vec3 ripples(vec2 p, out vec3 tint) {
   vec3 acc = vec3(0.0);
   vec3 tintSum = vec3(0.0);
   float tintW = 0.0;
+  float best = 1e12;
+  vec2 q = p;
+  bool inside = false;
   for (int s = 0; s < ${RIP_MAX}; s++) {
     if (float(s) >= uRipCount) break;
-    vec4 rp = uRip[s]; // segment count, colour (0xRRGGBB as a float, 0 = default), front distance, amplitude
-    float best = 1e12;
-    vec2 q = p;
-    bool inside = false;
+    // segment count (negative: continues the previous slot's shape), colour (0xRRGGBB as a float,
+    // 0 = default), front distance, amplitude
+    vec4 rp = uRip[s];
     for (int i = 0; i < ${RIP_SEGS}; i++) {
-      if (float(i) >= rp.x) break;
+      if (float(i) >= abs(rp.x)) break;
       vec4 sg = uRSeg[s * ${RIP_SEGS} + i];
       vec2 ab = sg.zw - sg.xy;
       float t = clamp(dot(p - sg.xy, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
@@ -45,16 +47,22 @@ vec3 ripples(vec2 p, out vec3 tint) {
       if (d2 < best) { best = d2; q = c; }
       if ((sg.y > p.y) != (sg.w > p.y) && p.x < sg.x + (p.y - sg.y) * ab.x / ab.y) inside = !inside;
     }
-    // Waves only travel outward from a shape.
-    if (inside) continue;
+    // The shape goes on in the next slot: shade it once, after all of its segments.
+    if (s + 1 < ${RIP_MAX} && float(s + 1) < uRipCount && uRip[s + 1].x < 0.0) continue;
     float d = sqrt(best);
+    vec2 qn = q;
+    bool wasInside = inside;
+    best = 1e12;
+    q = p;
+    inside = false;
     float x = d - rp.z;
-    if (abs(x) > W * 3.5) continue;
+    // Waves only travel outward from a shape.
+    if (wasInside || abs(x) > W * 3.5) continue;
     float env = exp(-x * x / (2.0 * W * W));
     float ph = x * K;
     float h = rp.w * env * cos(ph);
     float dh = rp.w * env * (-K * sin(ph) - x / (W * W) * cos(ph));
-    vec2 dir = d > 0.001 ? (p - q) / d : vec2(0.0);
+    vec2 dir = d > 0.001 ? (p - qn) / d : vec2(0.0);
     acc += vec3(dir * dh * uRipScale, h);
     vec3 col = rp.y > 0.0
       ? vec3(floor(rp.y / 65536.0), mod(floor(rp.y / 256.0), 256.0), mod(rp.y, 256.0)) / 255.0
@@ -97,7 +105,8 @@ export class Ripples {
       twin.strength = Math.min(1.6, Math.max(twin.strength, strength) + strength * 0.25);
       return;
     }
-    if (segs.length > RIP_SEGS) {
+    // ponytail: past 4 slots' worth of edges, a shape ripples from its centre as a drop.
+    if (segs.length > RIP_SEGS * 4) {
       const xs = segs.map((s) => s[0]), ys = segs.map((s) => s[1]);
       const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
       segs = [[cx, cy, cx, cy]];
@@ -119,14 +128,22 @@ export class Ripples {
     this.list = this.list.filter((r) => (r.age += dt) < LIFE);
     const u = this.group.uniforms as { uRSeg: Float32Array; uRip: Float32Array; uRipCount: number; uRipScale: number };
     u.uRipScale = this.scale;
-    this.list.forEach((r, s) => {
-      r.segs.forEach((seg, i) => u.uRSeg.set(seg, (s * RIP_SEGS + i) * 4));
+    // RIP_SEGS edges per slot; a longer outline continues in the following slots (newest ripples
+    // win when slots run out).
+    let s = 0;
+    for (const r of [...this.list].reverse()) {
+      const slots = Math.ceil(r.segs.length / RIP_SEGS);
+      if (s + slots > RIP_MAX) continue;
       const front = r.age * SPEED * this.scale;
       // Fades over its life and as it spreads out.
       const amp = r.strength * (1 - r.age / LIFE) ** 2 / (1 + front / (160 * this.scale));
-      u.uRip.set([r.segs.length, r.color, front, amp], s * 4);
-    });
-    u.uRipCount = this.list.length;
+      for (let k = 0; k < slots; k++, s++) {
+        const part = r.segs.slice(k * RIP_SEGS, (k + 1) * RIP_SEGS);
+        part.forEach((seg, i) => u.uRSeg.set(seg, (s * RIP_SEGS + i) * 4));
+        u.uRip.set([k > 0 ? -part.length : part.length, r.color, front, amp], s * 4);
+      }
+    }
+    u.uRipCount = s;
     this.group.update();
   }
 }
