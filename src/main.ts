@@ -303,7 +303,9 @@ function sync(): void {
     startTime += performance.now() - solvedAt;
     solvedAt = null;
   }
-  const origin = game.guessOrigin();
+  // A guess started but not yet played: its square waits on the selected cell (where the first move
+  // will most likely go), and the guess before it greys out with the older ones.
+  const origin = game.guessOrigin() ?? (game.layer > 0 && board.selected >= 0 ? { cell: board.selected } : null);
   const ring = origin ? { cell: origin.cell, color: LAYER_COLORS[Math.min(game.layer, LAYER_COLORS.length - 1)] } : null;
   // Earlier guesses still open under the current one: their first digits keep a small square.
   const older = Array.from({ length: Math.max(0, game.layer - 1) }, (_, i) => game!.guessOrigin(i + 1)?.cell ?? -1).filter((c) => c >= 0);
