@@ -721,11 +721,7 @@ export class BoardView extends Container {
     const pill = this.sumPill;
     const info = this.sumSelection(region);
     this.sumKnown = !!info?.showTotal;
-    // A single whole cage: its total would just repeat its own label (its leftover still shows).
-    if (!pill || pill.destroyed || (info && !info.showTotal && !info.hidden)) {
-      if (pill && !pill.destroyed) pill.visible = false;
-      return info?.hidden ?? null;
-    }
+    if (!pill || pill.destroyed) return info?.hidden ?? null;
     // One pill, top to bottom: the leftover's target (pink, or green when it pins a digit), the
     // selection's total (blue), and the whole lines' total it comes from (grey, e.g. 63 for three rows of 21).
     const hidden = info?.hidden ?? null;
@@ -739,9 +735,8 @@ export class BoardView extends Container {
     // Neither adding nor multiplying gives a total yet: "?" while the selection grows.
     label.text = info ? `${+info.total.toFixed(3)}${info.op}` : '?';
     label.tint = NEUTRAL;
-    label.visible = !info || info.showTotal;
     const sub = pill.getChildAt(2) as Text;
-    sub.visible = !!hidden && label.visible;
+    sub.visible = !!hidden;
     if (hidden && info) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
     const bg = pill.getChildAt(0) as Graphics;
     const cs = this.cs;
