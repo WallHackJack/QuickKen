@@ -14,9 +14,14 @@ export interface Options {
   timeScale: 0.25 | 0.5 | 1;
   /** Tint maybes red when a number already in their row or column rules them out. */
   markBadMaybes: boolean;
+  /**
+   * Graphics quality. 1 low: no lighting pass, still clouds. 2 medium: lighting on the board only.
+   * 3 high: light also falls on digits, the buttons light up and are see-through.
+   */
+  graphics: 1 | 2 | 3;
 }
 
-export const DEFAULT_OPTIONS: Options = { chains: true, fillLastGap: true, fillCageLast: true, animSpeed: 4, timeScale: 1, markBadMaybes: true };
+export const DEFAULT_OPTIONS: Options = { chains: true, fillLastGap: true, fillCageLast: true, animSpeed: 4, timeScale: 1, markBadMaybes: true, graphics: 2 };
 
 const KEY = 'kenken.options';
 

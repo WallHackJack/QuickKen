@@ -227,6 +227,14 @@ export class Hud {
           <span><b>Mark impossible maybes</b><small>Maybes turn red when a number already in their row or column rules them out.</small></span>
         </label>
         <fieldset class="speed">
+          <legend><b>Graphics</b><small>Low turns lighting off and stills the clouds. High adds light on digits and lit, see-through buttons.</small></legend>
+          <div class="segmented">
+            <label><input type="radio" name="graphics" value="1" /><span>Low</span></label>
+            <label><input type="radio" name="graphics" value="2" /><span>Medium</span></label>
+            <label><input type="radio" name="graphics" value="3" /><span>High</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="speed">
           <legend><b>Chain pace</b><small>How quickly each step of a chain reaction follows the last. 4× is the quickest.</small></legend>
           <div class="segmented">
             <label><input type="radio" id="opt-speed-1" name="animSpeed" value="1" /><span>1×</span></label>
@@ -263,7 +271,7 @@ export class Hud {
       box.checked = Boolean(o[box.name as keyof Options]);
     });
     this.optionsDialog.querySelectorAll<HTMLInputElement>('input[type=radio]').forEach((radio) => {
-      radio.checked = Number(radio.value) === o[radio.name as 'animSpeed' | 'timeScale'];
+      radio.checked = Number(radio.value) === o[radio.name as 'animSpeed' | 'timeScale' | 'graphics'];
     });
     // The chain sub-options only mean something while chains are on.
     const sub = this.optionsDialog.querySelector<HTMLElement>('.sub')!;

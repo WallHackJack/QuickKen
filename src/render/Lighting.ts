@@ -72,6 +72,7 @@ uniform float uCount;
 uniform float uCell;
 uniform float uTime;
 uniform float uFog;
+uniform float uStroke;
 uniform vec4 uMask[${MAX_MASK}];
 uniform float uMaskCount;
 float fh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -178,8 +179,8 @@ void main(void) {
   // picks up a little of it.
   vec3 albedo = mix(base.rgb, vec3(h), 0.6 * stroke);
   // Strong on purpose: with the fog off (the default) this is all the light the board gets.
-  // ponytail: stroke lighting (digits, walls) is switched off until it reads cleanly; 1.0 brings it back.
-  const float strokeLight = 0.0;
+  // Light on strokes (digits, walls): High graphics only.
+  float strokeLight = uStroke;
   vec3 lit = base.rgb + albedo * diff * (1.8 + 1.4 * stroke * strokeLight) + spec * 0.5 * stroke * h * strokeLight + halo * 1.1;
   // Fog over the board: barely there on its own, but lights scatter in it strongly.
   float f = fog(p) * uFog;
@@ -211,7 +212,7 @@ function fitSegments(segs: number[][], slots: number): number[][] {
 
 export class Lighting {
   private filter: Filter;
-  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number; uTime: number; uFog: number; uMask: Float32Array; uMaskCount: number };
+  private u: { uSeg: Float32Array; uSrc: Float32Array; uRange: Float32Array; uCount: number; uCell: number; uTime: number; uFog: number; uMask: Float32Array; uMaskCount: number; uStroke: number };
   /** Board-local rectangles [x0, y0, x1, y1] that no light reaches, asked for every frame. */
   maskRects: () => number[][] = () => [];
   private sources: Source[] = [];
@@ -239,6 +240,7 @@ export class Lighting {
           uFog: { value: 0, type: 'f32' },
           uMask: { value: new Float32Array(MAX_MASK * 4), type: 'vec4<f32>', size: MAX_MASK },
           uMaskCount: { value: 0, type: 'f32' },
+          uStroke: { value: 0, type: 'f32' },
         },
       },
       resolution: 'inherit',
@@ -254,8 +256,15 @@ export class Lighting {
     this.u.uCell = cs;
   }
 
-  /** Off (G key): no lighting pass at all. */
+  /** Off (G key, or Low graphics): no lighting pass at all. */
   enabled = true;
+  /** The HUD buttons pick up the lights (High graphics). */
+  litButtons = true;
+
+  /** Light on digits and walls too (High graphics), not just the board around them. */
+  setStrokeLight(on: boolean): void {
+    this.u.uStroke = on ? 1 : 0;
+  }
 
   /** Show or hide the fog over the board (H key cycles it with the background clouds). */
   setFog(on: boolean): void {
@@ -315,7 +324,11 @@ export class Lighting {
       return t < 1 && (s.alive?.() ?? true);
     });
     this.u.uCount = src;
-    this.lightButtons(lights);
+    if (this.litButtons) this.lightButtons(lights);
+    else if (this.buttons.length) {
+      for (const b of this.buttons) b.style.removeProperty('--li');
+      this.buttons = [];
+    }
   }
 
   private off(): void {

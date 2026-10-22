@@ -223,3 +223,6 @@ dialog.ask h2 { font-size: 20px; margin: 4px 0 16px; }
 dialog.ask .row { justify-content: stretch; }
 dialog.ask .row button { flex: 1; padding: 12px; }
 dialog.ask .yes { background: #8cff6b; border-color: #8cff6b; color: #0b1a08; font-weight: 800; }
+
+/* Below High graphics, panels and buttons are solid (no see-through backgrounds). */
+body.gfx-solid { --panel: #0e1024; }

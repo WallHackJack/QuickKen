@@ -127,8 +127,11 @@ export class Background {
     this.ripples.add([[x, y, x, y]], strength);
   }
 
+  /** Low graphics: the clouds hold still. */
+  still = false;
+
   update(dt: number): void {
-    this.time += dt;
+    if (!this.still) this.time += dt;
     this.ripples.update(dt);
     this.energy *= Math.exp(-dt * 1.5);
     this.uniforms.uTime = this.time;

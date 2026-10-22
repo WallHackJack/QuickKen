@@ -65,6 +65,15 @@ function applyOptions(): void {
   // Speed only spaces out chain waves: 4× keeps today's gaps, 1× makes them 4 times longer.
   board.wavePace = 4 / options.animSpeed;
   board.markBadNotes = options.markBadMaybes;
+  // Graphics quality (the board fog stays off on every level; only H brings it).
+  const q = options.graphics;
+  if (board.lighting) {
+    board.lighting.enabled = q >= 2;
+    board.lighting.setStrokeLight(q === 3);
+    board.lighting.litButtons = q === 3;
+  }
+  bg.still = q === 1;
+  document.body.classList.toggle('gfx-solid', q < 3);
   board.refresh();
   if (!game) return;
   game.settings.fillLastGap = options.fillLastGap;
