@@ -740,15 +740,31 @@ export class BoardView extends Container {
     if (hidden && info) sub.text = `${+(info.op === '×' ? info.lineSum ** info.lines : info.lineSum * info.lines).toFixed(3)}`;
     const bg = pill.getChildAt(0) as Graphics;
     const cs = this.cs;
-    const lines = [left, label, sub].filter((t) => t.visible);
+    // Sizes: the pink target is the headline; blue and grey share one smaller size. Without a
+    // leftover the blue total is the headline instead.
+    const big = Math.max(15, cs * 0.36), small = Math.max(10, cs * 0.21);
+    left.style.fontSize = big;
+    label.style.fontSize = hidden ? small : big;
+    sub.style.fontSize = small;
+    // Blue and grey share a row unless they're long (then each gets its own).
+    const paired = sub.visible && label.text.length + sub.text.length <= 9;
+    const pairGap = cs * 0.12;
+    const rows: Text[][] = [left.visible ? [left] : [], paired ? [label, sub] : [label], sub.visible && !paired ? [sub] : []].filter((r) => r.length);
+    const rowH = (r: Text[]) => Math.max(...r.map((t) => t.height)) * 0.88;
+    const rowW = (r: Text[]) => r.reduce((a, t) => a + t.width, 0) + pairGap * (r.length - 1);
     const gap = cs * 0.02;
-    const h = lines.reduce((a, t) => a + t.height * 0.88, 0) + gap * (lines.length - 1) + cs * 0.14;
+    const h = rows.reduce((a, r) => a + rowH(r), 0) + gap * (rows.length - 1) + cs * 0.14;
     let y = -h / 2 + cs * 0.07;
-    for (const t of lines) {
-      t.y = y + (t.height * 0.88) / 2;
-      y += t.height * 0.88 + gap;
+    for (const r of rows) {
+      let x = -rowW(r) / 2;
+      for (const t of r) {
+        t.x = x + t.width / 2;
+        t.y = y + rowH(r) / 2;
+        x += t.width + pairGap;
+      }
+      y += rowH(r) + gap;
     }
-    const w = Math.max(...lines.map((t) => t.width)) + cs * 0.4;
+    const w = Math.max(...rows.map(rowW)) + cs * 0.4;
     // With a leftover the outline runs from its pink (top) to the selection's blue (bottom).
     this.pillEdge ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: HIDDEN }, { offset: 1, color: NEUTRAL }], textureSpace: 'local' });
     bg.clear().roundRect(-w / 2, -h / 2, w, h, Math.min(h, w) / 2).fill({ color: 0x0b0d22, alpha: 0.9 }).stroke(hidden ? { width: 2, fill: this.pillEdge, alpha: 0.85 } : { width: 2, color: NEUTRAL, alpha: 0.85 });
