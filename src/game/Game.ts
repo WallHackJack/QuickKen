@@ -524,12 +524,14 @@ export class Game {
     // Plain arithmetic: the part of a cage whose operator matches the drag, with the rest filled.
     if (mode === 'sum' && cage.op === 'add' && filled(rest)) return cage.target - totalOf(rest);
     if (mode === 'product' && cage.op === 'mul' && filled(rest) && totalOf(rest) !== 0) return cage.target / totalOf(rest);
-    if (cage.cells.some((c) => this.values[c] === EMPTY && !this.notes[c])) return null;
+    // The selected cells need maybes (the total never gives away more than the player has worked out).
+    // Empty cells of the cage outside the selection may hold any digit.
+    if (part.some((c) => this.values[c] === EMPTY && !this.notes[c])) return null;
     const op = getOperator(cage.op);
     const options = cage.cells.map((c) => {
       if (this.values[c] !== EMPTY) return [this.values[c]];
       const out: number[] = [];
-      for (let d = 0; d < this.n; d++) if (this.notes[c] & bit(d)) out.push(d);
+      for (let d = 0; d < this.n; d++) if (!this.notes[c] || this.notes[c] & bit(d)) out.push(d);
       return out;
     });
     // Digits each cell actually takes in some valid filling.
