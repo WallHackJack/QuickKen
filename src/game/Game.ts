@@ -578,13 +578,18 @@ export class Game {
    * operator matches (+ for sums, × for products) is simply its target.
    */
   regionTotal(region: number[], mode: 'sum' | 'product'): number | null {
+    // Cage by cage first. If that can't tell, count complete rows and columns as known (each holds
+    // every digit once, whatever its cages) and let the cages account for the rest. Neither way covers
+    // the other: taking a line out can split a cage the first way could settle.
+    return this.cagesTotal(region, mode, false) ?? this.cagesTotal(region, mode, true);
+  }
+
+  private cagesTotal(region: number[], mode: 'sum' | 'product', useLines: boolean): number | null {
     const { cages } = this.puzzle;
     const vals = this.puzzle.digits.values;
     let total = mode === 'sum' ? 0 : 1;
-    // A complete row or column holds every digit once: its total is known whatever its cages are.
-    // Those cells are taken out first; the cages only have to account for the rest.
     let rest = region;
-    for (const house of this.topo.houses) {
+    for (const house of useLines ? this.topo.houses : []) {
       if (!house.complete || !house.cells.every((c) => rest.includes(c))) continue;
       total = mode === 'sum' ? total + vals.reduce((a, b) => a + b, 0) : total * vals.reduce((a, b) => a * b, 1);
       rest = rest.filter((c) => !house.cells.includes(c));
