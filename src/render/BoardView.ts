@@ -1551,10 +1551,11 @@ export class BoardView extends Container {
         dashedSquare(v.highlight, inset, side, Math.max(4, side / 6), w);
         v.highlight.stroke({ width: w, color: this.guessOrigin.color, alpha: 0.9, cap: 'butt' });
       }
-      if (this.olderGuessOrigins.includes(c)) {
-        // An earlier guess started here: a small, dimmer inset square.
-        const w = Math.max(1.5, cs * 0.03);
-        v.highlight.rect(cs * 0.16, cs * 0.16, cs * 0.68, cs * 0.68).stroke({ width: w, color: GUESS_COLOR, alpha: 0.6 });
+      if (this.olderGuessOrigins.includes(c) && this.guessOrigin?.cell !== c) {
+        // An earlier guess started here: the same dashed square, greyed out.
+        const w = Math.max(1.5, cs * 0.032), inset = w / 2 + cs * 0.025, side = cs - inset * 2;
+        dashedSquare(v.highlight, inset, side, Math.max(4, side / 6), w);
+        v.highlight.stroke({ width: w, color: 0x8a90a8, alpha: 0.75, cap: 'butt' });
       }
     }
   }
