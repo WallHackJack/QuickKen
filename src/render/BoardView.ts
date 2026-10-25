@@ -1521,12 +1521,12 @@ export class BoardView extends Container {
         t.visible = (val === EMPTY || hidden.has(c)) && !bigMark && has(shownNotes, d);
         // Impossible: a number already shown in the same row or column is this digit.
         const bad = this.markBadNotes && t.visible && g.topo.peers[c].some((q) => g.values[q] === d && !hidden.has(q));
-        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : this.maybeTarget ? 0xffb870 : 0xb9c3e6;
+        t.tint = (onNote && d === mark.digit) || bad ? 0xff8a9a : c === this.dragSource ? MAYBE_LIGHT : mix(0xb9c3e6, 0xffb870, this.maybeMix);
         const glow = v.noteGlows[d];
         glow.visible = t.visible && (has(added, d) || onlyRemoved);
         glow.alpha = onlyRemoved ? 0.3 : 0.6;
         // The halo follows the maybe colour: warm behind orange maybes, pale cyan otherwise.
-        glow.tint = this.maybeTarget ? MAYBE_LIGHT : GLOW_TINT;
+        glow.tint = mix(GLOW_TINT, MAYBE_LIGHT, this.maybeMix);
       });
       // The selected cell's cage gets the soft highlight (not its row and column).
       const sameCage = g.topo.cageOf[c] === g.topo.cageOf[sel];
@@ -1540,14 +1540,14 @@ export class BoardView extends Container {
       // Selecting a cell Check marked wrong: pink, so it still reads as the red cell.
       else if (c === sel && (this.drag?.active || this.lockedSel)) { /* the drag selection shows instead */ }
       else if (c === sel && this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff6fcf, alpha: 0.38 });
-      else if (c === sel) v.highlight.rect(0, 0, cs, cs).fill(this.maybeTarget ? { color: MAYBE, alpha: 0.3 } : { color: 0xffffff, alpha: 0.22 });
+      else if (c === sel) v.highlight.rect(0, 0, cs, cs).fill({ color: mix(0xffffff, MAYBE, this.maybeMix), alpha: 0.22 + 0.08 * this.maybeMix });
       else if (this.errorCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xff4d6d, alpha: 0.26 });
       else if (this.hintCells.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0xffc94f, alpha: 0.28 });
       else if (selVal !== EMPTY && val === selVal && !hidden.has(c)) v.highlight.rect(0, 0, cs, cs).fill({ color: 0x4fd8ff, alpha: 0.16 });
       else if (sameCage && !this.drag?.active && !this.lockedSel) {
         // A firmer backing so the numbers stand out, then the mode tint (a deeper red in normal mode).
         v.highlight.rect(0, 0, cs, cs).fill({ color: 0x0b0d22, alpha: 0.45 });
-        v.highlight.rect(0, 0, cs, cs).fill(this.maybeTarget ? { color: MAYBE, alpha: 0.1 } : { color: 0x3a4a80, alpha: 0.22 });
+        v.highlight.rect(0, 0, cs, cs).fill({ color: mix(0x3a4a80, MAYBE, this.maybeMix), alpha: 0.22 - 0.12 * this.maybeMix });
       }
       if (g.puzzle.rules?.goal?.cell === c) {
         // A campaign level's cell to solve: a gold ring.
@@ -2327,12 +2327,14 @@ export class BoardView extends Container {
     this.tickHold(dt * 1000);
     this.tickDragGlow(dt * 1000);
     this.drawSelection(dt * 1000);
-    this.lighting?.update(dt * 1000);
     if (this.maybeMix !== this.maybeTarget) {
       const step = dt * 6;
-      // Eases the selection ring between blue and orange; cage walls don't follow the mode.
+      // Eases the mode colours (ring, light, selected cell, cage tint, maybes) together, the same
+      // blend for all of them in the same frame; cage walls don't follow the mode.
       this.maybeMix = Math.abs(this.maybeTarget - this.maybeMix) <= step ? this.maybeTarget : this.maybeMix + Math.sign(this.maybeTarget - this.maybeMix) * step;
+      this.refresh();
     }
+    this.lighting?.update(dt * 1000);
     const d = this.drag;
     if (d?.active && d.copying) {
       // Blueprint cell: a breathing violet frame while its maybes are being copied.
