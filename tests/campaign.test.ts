@@ -3,6 +3,28 @@ import { LEVELS } from '../src/game/campaign';
 import { Game } from '../src/game/Game';
 
 describe('campaign', () => {
+  it('Two Rows: 3 is the only digit the "?" cell can take', () => {
+    const perms = (a: number[]): number[][] => (a.length < 2 ? [a] : a.flatMap((x, i) => perms(a.filter((_, j) => j !== i)).map((r) => [x, ...r])));
+    const rows = perms([1, 2, 3, 4, 5, 6]);
+    const found = new Set<number>();
+    for (const a of rows) {
+      if (Math.abs(a[0] - a[1]) !== 3 || a[3] * a[4] !== 12) continue;
+      for (const b of rows) {
+        if (b[0] + b[1] !== 8 || Math.max(b[4], b[5]) !== 2 * Math.min(b[4], b[5]) || a[2] + b[2] + b[3] !== 12 || a.some((v, i) => v === b[i])) continue;
+        found.add(a[5]);
+      }
+    }
+    expect([...found]).toEqual([3]);
+  });
+
+  it('Two Rows: loads, and entering 3 in the "?" cell wins', () => {
+    const g = new Game(structuredClone(LEVELS[1].puzzle));
+    expect(g.cageStatus(3)).toBe('open');
+    g.setValue(29, 2);
+    expect(g.cageStatus(3)).toBe('open');
+    expect(g.isSolved()).toBe(true);
+  });
+
   it('the L: entering 3 in the hanging cell wins', () => {
     const g = new Game(structuredClone(LEVELS[0].puzzle));
     g.fillAllNotes();

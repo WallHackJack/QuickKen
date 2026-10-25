@@ -35,6 +35,8 @@ export const allOperators = (): OperatorDef[] => [...registry.values()];
 const byMagnitude = (v: number[]): [number, number] => (Math.abs(v[0]) >= Math.abs(v[1]) ? [v[0], v[1]] : [v[1], v[0]]);
 
 registerOperator({ id: 'given', symbol: '', name: 'Given', minCells: 1, maxCells: 1, effort: 0, evaluate: (v) => v[0] });
+// Campaign: a lone cell with no clue, labelled "?" (any digit fits; its target is 0 and so is its result).
+registerOperator({ id: 'unknown', symbol: '?', name: 'Unknown', minCells: 1, maxCells: 1, effort: 0, evaluate: () => 0 });
 registerOperator({ id: 'add', symbol: '+', name: 'Sum', minCells: 2, maxCells: Infinity, effort: 1, evaluate: (v) => v.reduce((a, b) => a + b, 0) });
 registerOperator({ id: 'mul', symbol: '×', name: 'Product', minCells: 2, maxCells: Infinity, effort: 1.2, evaluate: (v) => v.reduce((a, b) => a * b, 1) });
 registerOperator({ id: 'sub', symbol: '−', name: 'Difference', minCells: 2, maxCells: 2, effort: 0.8, evaluate: (v) => Math.abs(v[0] - v[1]) });

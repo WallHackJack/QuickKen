@@ -104,6 +104,7 @@ export function buildTopology(p: PuzzleDef): Topology {
 }
 
 export function cageLabel(cage: Cage): string {
+  if (cage.op === 'unknown') return '?';
   const op = getOperator(cage.op);
   const t = Number.isInteger(cage.target) ? String(cage.target) : String(+cage.target.toFixed(3));
   return t + op.symbol;

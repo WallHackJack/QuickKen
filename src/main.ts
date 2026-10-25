@@ -402,12 +402,15 @@ function layout(): void {
   // The board fits the stage (the area above the HUD), placed in page coordinates.
   const w = stageEl.clientWidth, h = stageEl.clientHeight;
   const top = 56; // room for the top bar and combo text
-  // An odd-shaped board is centred on the rows it uses (its cells start at the top-left).
+  // An odd-shaped board is centred on the rows and columns it uses (they needn't start at the top-left).
   const cells = game.topo.cageOf.flatMap((ci, c) => (ci >= 0 ? [c] : []));
-  const rows = Math.max(...cells.map((c) => Math.floor(c / game!.n))) + 1, cols = Math.max(...cells.map((c) => c % game!.n)) + 1;
+  const rowOf = (c: number) => Math.floor(c / game!.n), colOf = (c: number) => c % game!.n;
+  const r0 = Math.min(...cells.map(rowOf)), c0 = Math.min(...cells.map(colOf));
+  const rows = Math.max(...cells.map(rowOf)) - r0 + 1, cols = Math.max(...cells.map(colOf)) - c0 + 1;
   const size = Math.max(120, Math.min((w - 40) * game.n / cols, (h - top - 24) * game.n / rows));
-  const used = { w: size * cols / game.n, h: size * rows / game.n };
-  board.build(game, size, stageEl.offsetLeft + (w - used.w) / 2, stageEl.offsetTop + top + (h - top - used.h) / 2);
+  const cs = size / game.n;
+  const used = { w: cs * cols, h: cs * rows };
+  board.build(game, size, stageEl.offsetLeft + (w - used.w) / 2 - c0 * cs, stageEl.offsetTop + top + (h - top - used.h) / 2 - r0 * cs);
   bg.resize(app.screen.width, app.screen.height);
   span.clear().rect(0, 0, app.screen.width, app.screen.height).fill({ color: 0x000000, alpha: 0.001 });
   poke();

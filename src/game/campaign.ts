@@ -29,4 +29,24 @@ export const LEVELS: Level[] = [
       meta: { rating: 'Campaign 1', campaign: true },
     },
   },
+  {
+    // The bottom two rows of a Fiendish 6×6 (seed b3lqlao7ndh), its 1− turned 12×. The gold cell has no
+    // clue of its own ("?"): every way the two rows fit leaves it a 3.
+    name: 'Two Rows',
+    puzzle: {
+      size: 6,
+      digits: DIGIT_PRESETS.standard(6),
+      cages: [
+        { cells: [24, 25], op: 'sub', target: 3 },
+        { cells: [26, 32, 33], op: 'add', target: 12 },
+        { cells: [27, 28], op: 'mul', target: 12 },
+        { cells: [29], op: 'unknown', target: 0 },
+        { cells: [30, 31], op: 'add', target: 8 },
+        { cells: [34, 35], op: 'div', target: 2 },
+      ],
+      holes: holesOutside(6, [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]),
+      rules: { goal: { cell: 29, digit: 2 }, lockCursor: true, noMaybes: true, digitsOnly: true },
+      meta: { rating: 'Campaign 2', campaign: true },
+    },
+  },
 ];

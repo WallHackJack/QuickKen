@@ -941,7 +941,8 @@ export class Game {
 
   cageStatus(ci: number): 'open' | 'ok' | 'wrong' {
     const cage = this.puzzle.cages[ci];
-    if (cage.cells.some((c) => this.values[c] === EMPTY)) return 'open';
+    // A "?" cage never says whether its digit is right (the level's goal does).
+    if (cage.op === 'unknown' || cage.cells.some((c) => this.values[c] === EMPTY)) return 'open';
     const r = getOperator(cage.op).evaluate(cage.cells.map((c) => this.puzzle.digits.values[this.values[c]]));
     return r !== null && approxEq(r, cage.target) ? 'ok' : 'wrong';
   }
